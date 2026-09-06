@@ -1,0 +1,21 @@
+[package]
+name = "kiwi-mcu"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "kiwi-mcu"
+test = false
+bench = false
+
+[dependencies]
+cortex-m = { version = "0.7.9", features = ["critical-section-single-core"] }
+cortex-m-rt = "0.7.6"
+panic-probe = "1.0.0"
+
+embassy-executor = { version = "0.10.0", features = ["platform-cortex-m", "executor-thread", "defmt"] }
+embassy-time = { version = "0.5.1", features = ["tick-hz-32_768"] }
+embassy-stm32 = { version = "0.6.0", features = ["stm32f767zi", "time-driver-tim12", "memory-x", "single-bank"] }
+
+defmt = "1.1.1"
+defmt-rtt = "1.0.0"

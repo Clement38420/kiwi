@@ -1,0 +1,6 @@
+CAO/
+
+crates/*/target
+
+.idea
+.run
