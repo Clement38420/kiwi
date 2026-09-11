@@ -1,37 +1,24 @@
-import numpy as np
+from data import Data
 
 
 class Simulator:
-    def __init__(self, robot, dt=0.05, commands=()):
-        self.robot = robot
+    def __init__(self, dt=0.05):
         self.dt = dt
         self.time = 0.0
-        self.command = (0.0, 0.0, 0.0)
-        self.commands = []
-        t = 0.0
-        for duration, cmd in commands:
-            self.commands.append((t, cmd))
-            t += duration
-        self.end_time = t
-        self.history = [(self.time, np.asarray(robot.pose, dtype=float).copy())]
+        self.data = Data()
+        self.modules = []
 
-    def set_command(self, vx, vy, w):
-        self.command = (vx, vy, w)
-        self.commands.clear()
-
-    def _advance_schedule(self):
-        while self.commands and self.commands[0][0] <= self.time:
-            _, self.command = self.commands.pop(0)
+    def add(self, module):
+        self.modules.append(module)
+        self.modules.sort(key=lambda module: module.priority, reverse=True)
 
     def step(self):
-        self._advance_schedule()
-        self.robot.command(*self.command)
-        self.robot.step(self.dt)
         self.time += self.dt
-        self.history.append((self.time, self.robot.pose.copy()))
+        for module in self.modules:
+            module.step(self)
 
-    def run(self, duration=None):
-        end = self.end_time if duration is None else duration
-        while self.time < end - 1e-9:
+    def run(self, duration):
+        for module in self.modules:
+            module.setup(self)
+        while self.time < duration - 1e-9:
             self.step()
-        return self.history
