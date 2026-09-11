@@ -1,32 +1,20 @@
-import matplotlib.pyplot as plt
-import numpy as np
-from matplotlib.animation import FuncAnimation
+import math
 
+from renderer import Renderer
 from robot import Robot
+from simulator import Simulator
 
-DT = 0.05
+robot = Robot(0.0, 0.0, 0.0)
 
-robot = Robot()
-robot.command(0.5, 0.0, 0.0)
+commands = [
+    (1.0, (0.0, 0.0, 0.0)),
+    (2.0, (0.5, 0.0, 0.0)),
+    (2.0, (0.0, 0.0, math.pi / 2)),
+    (1.0, (0.0, 0.0, 0.0)),
+]
 
-fig, ax = plt.subplots()
-ax.set_aspect("equal")
-ax.set_xlim(-0.5, 6)
-ax.set_ylim(-2, 2)
-ax.grid(True)
-(line,) = ax.plot([], [], "b-", lw=1)
-body, = ax.plot([], [], "ro")
+sim = Simulator(robot, dt=0.05, commands=commands)
+sim.run()
+print(f"simulé {sim.time:.2f}s, {len(sim.history)} points")
 
-
-def update(_):
-    robot.step(DT)
-    path = np.array(robot.history)
-    line.set_data(path[:, 0], path[:, 1])
-    body.set_data([path[-1, 0]], [path[-1, 1]])
-    return line, body
-
-
-_ani = FuncAnimation(
-    fig, update, interval=DT * 1000, blit=True, cache_frame_data=False
-)
-plt.show()
+Renderer(sim.history, speed=1.0).run()

@@ -29,7 +29,7 @@ async fn main(_spawner: Spawner) {
 }
 
 fn set_wheels_duty_cycle(wheels: &mut board::WheelsMotors, duty_cycle: u8) {
-    wheels.m1.set_duty_cycle_percent(duty_cycle);
+    wheels.m1.set_duty_cycle_percent(0);
     wheels.m2.set_duty_cycle_percent(duty_cycle);
     wheels.m3.set_duty_cycle_percent(duty_cycle);
 }
