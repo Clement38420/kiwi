@@ -1,6 +1,9 @@
+# EXTERNAL
 CAO/
+docs/ST/
 
+# BUILD FILES
 crates/*/target
 
+# IDE FILES
 .idea
-.run

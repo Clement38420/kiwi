@@ -1,8 +1,12 @@
-# Kiwi — Robotique, firmware MCU embarqué
+# Kiwi — Robot mobile autonome
+
+Projet de robot mobile autonome DIY, tout en Rust, sans ROS ni framework clé en main.
+Stack cible : STM32 (contrôle moteurs, capteurs bas niveau), Raspberry Pi (compute, SLAM, Zenoh),
+app de télémétrie.
 
 ## Architecture
 
-- **crates/kiwi-mcu/** — firmware embarqué (seul code source) pour STM32F767ZI (NUCLEO 767ZI).
+- **crates/kiwi-mcu/** — firmware embarqué (seul code source pour l'instant) pour STM32F767ZI (NUCLEO 767ZI).
 - **CAO/** — fichiers SolidWorks (gitignorés), pas de build associé.
 - Pas de workspace Cargo global : tout se fait dans `crates/kiwi-mcu/`.
 
@@ -38,6 +42,11 @@ La cible est `thumbv7em-none-eabihf`. Les scripts `remote-*.sh` utilisent `probe
 - **TIM3 CH3 (PB0)** → PWM moteur 3
 
 Les ESCs BLM3650 ont un réducteur planétaire 1:36 intégré.
+
+## Documentation
+
+- `docs/ST/um-stm32-nucleo144.pdf` — manuel utilisateur NUCLEO-F767ZI (pinout, schémas, connecteurs).
+- `docs/ST/rm-stm32f76xxx.pdf` — reference manual STM32F767xx (registres, périphériques, timers).
 
 ## Stack logicielle
 
