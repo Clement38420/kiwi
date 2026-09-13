@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-PI_HOST="clement@192.168.1.133"
+PI_HOST="clement@kiwi.local"
 REMOTE_DIR="/tmp/kiwi-mcu"
 CHIP="STM32F767ZITx"
 
