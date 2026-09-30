@@ -1,4 +1,4 @@
-use crate::battery_monitoring::{BATTERY_STATUS, BatteryStatus};
+use crate::battery_management::{BATTERY_STATUS, BatteryStatus};
 use defmt::error;
 use embassy_futures::select::select_array;
 use embassy_stm32::Peri;
