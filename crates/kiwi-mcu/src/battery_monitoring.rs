@@ -1,4 +1,3 @@
-use crate::safety::{SAFETY_CHANNEL, SafetyReason};
 use defmt::Format;
 use embassy_stm32::Peri;
 use embassy_stm32::adc::{Adc, AdcConfig, AnyAdcChannel, Resolution, SampleTime};
@@ -94,10 +93,6 @@ pub async fn battery_monitoring_task(
         );
 
         battery_sender.send(battery_status);
-
-        if battery_status == BatteryStatus::Critical {
-            SAFETY_CHANNEL.send(SafetyReason::BatteryCritical).await;
-        }
 
         ticker.next().await;
     }
