@@ -1,9 +1,7 @@
 use crate::battery_management::{BATTERY_STATUS, BatteryStatus};
 use defmt::error;
 use embassy_futures::select::select_array;
-use embassy_stm32::Peri;
-use embassy_stm32::gpio::{Level, Output, Speed};
-use embassy_stm32::peripherals::PG8;
+use embassy_stm32::gpio::Output;
 
 pub enum SafetyReason {
     BatteryCriticalVoltage,
@@ -20,9 +18,7 @@ async fn battery_safety_check() -> SafetyReason {
 }
 
 #[embassy_executor::task]
-pub async fn safety_task(power_cmd_pin: Peri<'static, PG8>) {
-    let mut power_cmd = Output::new(power_cmd_pin, Level::High, Speed::Low);
-
+pub async fn safety_task(mut pwr_cmd: Output<'static>) {
     loop {
         let check_functions = [battery_safety_check()];
         let (reason, _index) = select_array(check_functions).await;
@@ -30,7 +26,7 @@ pub async fn safety_task(power_cmd_pin: Peri<'static, PG8>) {
         match reason {
             SafetyReason::BatteryCriticalVoltage => {
                 // Cut power to the system
-                power_cmd.set_low();
+                pwr_cmd.set_low();
                 error!("Safety task: Battery critical! Cutting power to the system.");
             }
         }

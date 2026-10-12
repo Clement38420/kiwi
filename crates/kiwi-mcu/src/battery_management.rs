@@ -1,12 +1,12 @@
 use defmt::Format;
-use embassy_stm32::Peri;
-use embassy_stm32::adc::{Adc, AdcConfig, AnyAdcChannel, Resolution, SampleTime};
-use embassy_stm32::gpio::{Level, Output, Speed};
-use embassy_stm32::peripherals::{ADC1, PG6, PG7};
+use embassy_stm32::adc::{Adc, AnyAdcChannel, SampleTime};
+use embassy_stm32::gpio::Output;
+use embassy_stm32::peripherals::ADC1;
 use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
+use embassy_sync::mutex::Mutex;
 use embassy_sync::watch::Watch;
 
-pub static BATTERY_STATUS: Watch<ThreadModeRawMutex, BatteryStatus, 1> = Watch::new();
+pub static BATTERY_STATUS: Watch<ThreadModeRawMutex, BatteryStatus, 2> = Watch::new();
 
 #[derive(PartialEq, Copy, Clone, Format)]
 pub enum BatteryStatus {
@@ -68,16 +68,9 @@ pub fn get_battery_status(current_status: &BatteryStatus, raw_adc: u16) -> Batte
 
 #[embassy_executor::task]
 pub async fn battery_monitoring_task(
-    adc_peri: Peri<'static, ADC1>,
-    mut voltage_pin: AnyAdcChannel<'static, ADC1>,
+    adc: &'static Mutex<ThreadModeRawMutex, Adc<'static, ADC1>>,
+    mut voltage_sense_pin: AnyAdcChannel<'static, ADC1>,
 ) {
-    let mut adc = Adc::new_with_config(
-        adc_peri,
-        AdcConfig {
-            resolution: Some(Resolution::BITS10),
-        },
-    );
-
     let mut battery_status = get_battery_status(&BatteryStatus::High, 1000);
     let battery_sender = BATTERY_STATUS.sender();
 
@@ -85,7 +78,9 @@ pub async fn battery_monitoring_task(
     loop {
         battery_status = get_battery_status(
             &battery_status,
-            adc.blocking_read(&mut voltage_pin, SampleTime::CYCLES144),
+            adc.lock()
+                .await
+                .blocking_read(&mut voltage_sense_pin, SampleTime::CYCLES144),
         );
 
         battery_sender.send(battery_status);
@@ -95,10 +90,10 @@ pub async fn battery_monitoring_task(
 }
 
 #[embassy_executor::task]
-pub async fn battery_led_task(led_red_pin: Peri<'static, PG6>, led_green_pin: Peri<'static, PG7>) {
-    let mut led_red_pin = Output::new(led_red_pin, Level::High, Speed::Low);
-    let mut led_green_pin = Output::new(led_green_pin, Level::High, Speed::Low);
-
+pub async fn battery_led_task(
+    mut led_red_pin: Output<'static>,
+    mut led_green_pin: Output<'static>,
+) {
     let mut receiver = BATTERY_STATUS.receiver().unwrap();
 
     let mut ticker = embassy_time::Ticker::every(embassy_time::Duration::from_millis(500));
