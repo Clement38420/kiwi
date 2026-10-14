@@ -1,6 +1,6 @@
 use core::sync::atomic::{AtomicU32, Ordering};
 use embassy_stm32::interrupt::typelevel::{Binding, Handler, Interrupt};
-use embassy_stm32::time::mhz;
+use embassy_stm32::time::Hertz;
 use embassy_stm32::timer;
 use embassy_stm32::timer::input_capture::CapturePin;
 use embassy_stm32::timer::low_level::{
@@ -76,13 +76,13 @@ pub struct Timer<T: GeneralInstance32bit4Channel> {
 }
 
 impl<T: GeneralInstance32bit4Channel> Timer<T> {
-    pub fn new<Irq, H>(mut tim: timer::low_level::Timer<'static, T>, _irq: Irq) -> Self
+    pub fn new<Irq, H>(mut tim: timer::low_level::Timer<'static, T>, _irq: Irq, freq: Hertz) -> Self
     where
         H: Handler<T::CaptureCompareInterrupt>,
         Irq: Binding<T::CaptureCompareInterrupt, H>,
     {
         tim.set_counting_mode(CountingMode::EdgeAlignedUp);
-        tim.set_tick_freq(mhz(1));
+        tim.set_tick_freq(freq);
 
         Self {
             tim,
