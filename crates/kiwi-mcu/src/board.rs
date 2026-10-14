@@ -1,23 +1,45 @@
+//! Hardware abstraction and pin mapping for the board.
+//!
+//! # Pin Mapping
+//!
+//! ## Wheel Motors (`TIM3` & `GPIOG`)
+//! PWM configured at **20 kHz**, edge-aligned up, push-pull. Control pins in open-drain (external pull-up).
+//!
+//! | Pin | Peripheral / Mode | Description |
+//! | :--- | :--- | :--- |
+//! | `PA6` | `TIM3_CH1` (PWM) | Wheel 1 motor PWM |
+//! | `PG0`, `PG1` | `GPIO` (Open-Drain) | Wheel 1 motor control (Enable / Direction) |
+//! | `PA7` | `TIM3_CH2` (PWM) | Wheel 2 motor PWM |
+//! | `PG2`, `PG3` | `GPIO` (Open-Drain) | Wheel 2 motor control (Enable / Direction) |
+//! | `PB0` | `TIM3_CH3` (PWM) | Wheel 3 motor PWM |
+//! | `PG4`, `PG5` | `GPIO` (Open-Drain) | Wheel 3 motor control (Enable / Direction) |
+//!
+//! ## Wheel Encoders (`TIM2`)
+//! Input capture on falling edge (`Pull::None`, using external pull-ups).
+//!
+//! | Pin | Peripheral / Mode | Description |
+//! | :--- | :--- | :--- |
+//! | `PA0` | `TIM2_CH1` | Wheel 1 encoder |
+//! | `PB10` | `TIM2_CH3` | Wheel 2 encoder |
+//! | `PB11` | `TIM2_CH4` | Wheel 3 encoder |
+//!
+//! > **Note:** `TIM2_CH2` is not used because it is not routed to the ST Zio connector (required to wire the external pull-up).
+//!
+//! ## Power & Voltage Monitoring (`ADC1` & `GPIOG`)
+//!
+//! | Pin | Peripheral / Mode | Description |
+//! | :--- | :--- | :--- |
+//! | `PG8` | `GPIO` (Push-Pull) | Power command (`pwr_cmd`) |
+//! | `PC0` | `ADC1` (10-bit) | Voltage sense (`voltage_sense`) |
+//! | `PG6` | `GPIO` (Push-Pull) | Voltage status LED — Red |
+//! | `PG7` | `GPIO` (Push-Pull) | Voltage status LED — Green |
+
 use crate::drivers;
-/// ────── Pin mapping ──────
-/// ── Wheels Motors ──
-/// PA6 ─ TIM3_CH1 ─ Wheel 1 motor PWM
-/// PA7 ─ TIM3_CH2 ─ Wheel 2 motor PWM
-/// PB0 ─ TIM3_CH3 ─ Wheel 3 motor PWM
-/// PWM frequency : 20 kHz, edge-aligned up
-///
-/// ── Wheels Encoders ──
-/// PA0 ─ TIM2_CH1 ─ Encoder wheel 1
-/// PB10 ─ TIM2_CH3 ─ Encoder wheel 2
-/// PB11 ─ TIM2_CH4 ─ Encoder wheel 3
-/// CH2 not used because it does not have a pin on the ST Zio connector (to connect the external pull up)
-///
-///
 use crate::drivers::motors::BLM3650Motor;
 use embassy_stm32::adc::{AdcChannel, AdcConfig, AnyAdcChannel, Resolution};
 use embassy_stm32::gpio::{Level, Output, OutputOpenDrain, OutputType, Pull, Speed};
 use embassy_stm32::interrupt::typelevel::Handler;
-use embassy_stm32::time::{Hertz, khz};
+use embassy_stm32::time::{Hertz, khz, mhz};
 use embassy_stm32::timer::input_capture::CapturePin;
 use embassy_stm32::timer::low_level::CountingMode;
 use embassy_stm32::timer::simple_pwm::{PwmPin, SimplePwm, SimplePwmChannels};
@@ -32,7 +54,7 @@ const BLM3650_PWM_FREQ: Hertz = khz(20);
 static WHEEL_ENCODERS_TIM: OnceLock<drivers::one_channel_encoder::Timer<peripherals::TIM2>> =
     OnceLock::new();
 const WHEEL_ENCODER_FILTER: embassy_stm32::timer::low_level::FilterValue =
-    embassy_stm32::timer::low_level::FilterValue::FCK_INT_N8;
+    embassy_stm32::timer::low_level::FilterValue::FCK_INT_N8; // Timer clock is 16 MHz, so the filter cut-off is 500ns
 const WHEEL_ENCODER_MAX_PERIOD: u32 = 15_000;
 
 static ADC1: OnceLock<Mutex<ThreadModeRawMutex, adc::Adc<'static, peripherals::ADC1>>> =
@@ -71,7 +93,6 @@ impl Board {
             }
         );
 
-        // Wheel motors
         let tim3 = SimplePwm::new(
             p.TIM3,
             Some(PwmPin::new(p.PA6, OutputType::PushPull)),
@@ -82,6 +103,7 @@ impl Board {
             CountingMode::EdgeAlignedUp,
         );
 
+        // The BLM3650 ESC is controlled with open-drain pins with external pull-ups. The pins are set to high (open-drain) by default, which is the default state for the ESC.
         let pg0 = OutputOpenDrain::new_pull(p.PG0, Level::High, Speed::Low, Pull::None);
         let pg1 = OutputOpenDrain::new_pull(p.PG1, Level::High, Speed::Low, Pull::None);
         let pg2 = OutputOpenDrain::new_pull(p.PG2, Level::High, Speed::Low, Pull::None);
@@ -101,7 +123,6 @@ impl Board {
             motor.enable();
         }
 
-        //Wheel encoders
         let tim2 = embassy_stm32::timer::low_level::Timer::new(p.TIM2);
         let tim2 = drivers::one_channel_encoder::Timer::new(tim2, Irqs, mhz(1));
         let tim2 = WHEEL_ENCODERS_TIM.get_or_init(|| tim2);
@@ -126,10 +147,9 @@ impl Board {
 
         tim2.start();
 
-        // Power command pin
+        // Power command is ON by default
         let pwr_cmd = Output::new(p.PG8, Level::High, Speed::Low);
 
-        // Voltage sense ADC
         let adc1 = ADC1.get_or_init(|| {
             Mutex::new(adc::Adc::new_with_config(
                 p.ADC1,
@@ -139,7 +159,7 @@ impl Board {
             ))
         });
 
-        //Voltage LED pins
+        // The LEDs are active low, so we set them to high (off) by default
         let voltage_led_red = Output::new(p.PG6, Level::High, Speed::Low);
         let voltage_led_green = Output::new(p.PG7, Level::High, Speed::Low);
 

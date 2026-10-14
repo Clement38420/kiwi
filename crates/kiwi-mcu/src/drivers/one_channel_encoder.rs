@@ -30,6 +30,7 @@ impl<'d, T: GeneralInstance32bit4Channel, C: TimerChannel> Encoder<'d, T, C> {
         }
     }
 
+    /// Returns the period of the last tick in timer ticks, or None if the encoder is not moving (i.e. the period is greater than max_period).
     pub fn get_period(&self) -> Option<u32> {
         if self
             .tim
@@ -56,6 +57,7 @@ impl EncoderState {
     #[inline]
     fn update_period(&self, count: u32) {
         self.tick_period.store(
+            // The wrapping_sub handles the case where the counter overflows (in the case where the period is less than 2^32 ticks)
             count.wrapping_sub(self.prev_count.load(Ordering::Relaxed)),
             Ordering::Relaxed,
         );
@@ -91,12 +93,13 @@ impl<T: GeneralInstance32bit4Channel> Timer<T> {
     }
 
     pub fn start(&self) {
+        // Prevent unwanted interrupts from being triggered when starting the timer
         self.tim.regs_gp32().sr().write(|w| w.0 = 0);
         T::CaptureCompareInterrupt::unpend();
+
         unsafe {
             T::CaptureCompareInterrupt::enable();
         }
-
         self.tim.start();
     }
 
@@ -129,6 +132,7 @@ impl<T: GeneralInstance32bit4Channel> Timer<T> {
 
         for i in 0..4 {
             if sr.ccif(i) {
+                // The reading of the ccr register clears the interrupt flag
                 self.encoder_states[i].update_period(self.tim.regs_gp32().ccr(i).read());
             }
         }
