@@ -114,8 +114,7 @@ impl Board {
             motor.enable();
         }
 
-        let tim2 = embassy_stm32::timer::low_level::Timer::new(p.TIM2);
-        let tim2 = drivers::one_channel_encoder::Timer::new(tim2, Irqs, mhz(1));
+        let tim2 = drivers::one_channel_encoder::Timer::new(p.TIM2, Irqs, mhz(1));
         let tim2 = WHEEL_ENCODERS_TIM.get_or_init(|| tim2);
 
         let wheel_encoders = [
