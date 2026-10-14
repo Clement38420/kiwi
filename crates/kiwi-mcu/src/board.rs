@@ -55,6 +55,7 @@ pub struct Board {
         drivers::one_channel_encoder::Encoder<'static, peripherals::TIM2, Ch3>,
         drivers::one_channel_encoder::Encoder<'static, peripherals::TIM2, Ch4>,
     ),
+    pub tim2: &'static drivers::one_channel_encoder::Timer<peripherals::TIM2>,
     pub pwr_cmd: Output<'static>,
     pub adc1: &'static Mutex<ThreadModeRawMutex, adc::Adc<'static, peripherals::ADC1>>,
     pub voltage_led_red: Output<'static>,
@@ -145,6 +146,7 @@ impl Board {
         Board {
             wheel_motors,
             wheel_encoders,
+            tim2,
             pwr_cmd,
             adc1,
             voltage_led_red,
