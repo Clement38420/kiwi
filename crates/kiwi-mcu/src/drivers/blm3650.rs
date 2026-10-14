@@ -41,7 +41,8 @@ impl<'d, T: GeneralInstance4Channel> Motor<'d, T> {
             self.brake_pin.set_low();
         }
 
-        self.pwm_channel
-            .set_duty_cycle_percent((speed.abs() * 100.0) as u8);
+        let duty_cycle = self.pwm_channel.max_duty_cycle() as f32 * speed.abs();
+
+        self.pwm_channel.set_duty_cycle(duty_cycle as u32);
     }
 }
