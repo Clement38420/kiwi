@@ -14,8 +14,6 @@ use crate::drivers;
 ///
 ///
 use crate::drivers::motors::BLM3650Motor;
-use core::marker::PhantomData;
-use defmt::error;
 use embassy_stm32::adc::{AdcChannel, AdcConfig, AnyAdcChannel, Resolution};
 use embassy_stm32::gpio::{Level, Output, OutputOpenDrain, OutputType, Pull, Speed};
 use embassy_stm32::interrupt::typelevel::Handler;
@@ -23,50 +21,42 @@ use embassy_stm32::time::{Hertz, khz};
 use embassy_stm32::timer::input_capture::CapturePin;
 use embassy_stm32::timer::low_level::CountingMode;
 use embassy_stm32::timer::simple_pwm::{PwmPin, SimplePwm, SimplePwmChannels};
-use embassy_stm32::timer::{Ch1, Ch3, Ch4, GeneralInstance4Channel};
+use embassy_stm32::timer::{Ch1, Ch3, Ch4};
 use embassy_stm32::{Peripherals, adc, bind_interrupts, peripherals};
 use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
 use embassy_sync::mutex::Mutex;
 use embassy_sync::once_lock::OnceLock;
 
 const BLM3650_PWM_FREQ: Hertz = khz(20);
+
+static WHEEL_ENCODERS_TIM: OnceLock<drivers::one_channel_encoder::Timer<peripherals::TIM2>> =
+    OnceLock::new();
+const WHEEL_ENCODER_FILTER: embassy_stm32::timer::low_level::FilterValue =
+    embassy_stm32::timer::low_level::FilterValue::FCK_INT_N8;
+const WHEEL_ENCODER_MAX_PERIOD: u32 = 15_000;
+
+static ADC1: OnceLock<Mutex<ThreadModeRawMutex, adc::Adc<'static, peripherals::ADC1>>> =
+    OnceLock::new();
 const ADC1_RESOLUTION: Resolution = Resolution::BITS10;
 
-pub static WHEEL_ENCODERS_TIM: OnceLock<
-    drivers::encoders::OneChannelEncodersTimer<peripherals::TIM2>,
-> = OnceLock::new();
-
-pub static ADC1: OnceLock<Mutex<ThreadModeRawMutex, adc::Adc<'static, peripherals::ADC1>>> =
-    OnceLock::new();
-
-pub struct WheelEncodersIRQ<T: GeneralInstance4Channel> {
-    _phantom: PhantomData<T>,
-}
-
-impl<T: GeneralInstance4Channel> Handler<T::CaptureCompareInterrupt> for WheelEncodersIRQ<T> {
+struct WheelEncodersIRQ;
+impl Handler<embassy_stm32::interrupt::typelevel::TIM2> for WheelEncodersIRQ {
     unsafe fn on_interrupt() {
         if let Some(tim) = WHEEL_ENCODERS_TIM.try_get() {
-            let sr = embassy_stm32::pac::TIM2.sr().read();
-
-            if sr.ccif(0) {
-                tim.update_channel_period::<Ch1>(embassy_stm32::pac::TIM2.ccr(0).read());
-            }
-            if sr.ccif(2) {
-                tim.update_channel_period::<Ch3>(embassy_stm32::pac::TIM2.ccr(2).read());
-            }
-            if sr.ccif(3) {
-                tim.update_channel_period::<Ch4>(embassy_stm32::pac::TIM2.ccr(3).read());
-            }
-        } else {
-            error!("WheelEncodersIRQ: TIM2 not initialized");
+            tim.on_interrupt();
         }
     }
 }
 
 pub struct Board {
     pub wheel_motors: [BLM3650Motor<'static, peripherals::TIM3>; 3],
+    pub wheel_encoders: (
+        drivers::one_channel_encoder::Encoder<'static, peripherals::TIM2, Ch1>,
+        drivers::one_channel_encoder::Encoder<'static, peripherals::TIM2, Ch3>,
+        drivers::one_channel_encoder::Encoder<'static, peripherals::TIM2, Ch4>,
+    ),
     pub pwr_cmd: Output<'static>,
-    pub adc1: adc::Adc<'static, peripherals::ADC1>,
+    pub adc1: &'static Mutex<ThreadModeRawMutex, adc::Adc<'static, peripherals::ADC1>>,
     pub voltage_led_red: Output<'static>,
     pub voltage_led_green: Output<'static>,
     pub voltage_sense: AnyAdcChannel<'static, peripherals::ADC1>,
@@ -76,7 +66,7 @@ impl Board {
     pub fn init(p: Peripherals) -> Board {
         bind_interrupts!(
             struct Irqs {
-                TIM2 => WheelEncodersIRQ<peripherals::TIM2>;
+                TIM2 => WheelEncodersIRQ;
             }
         );
 
@@ -112,33 +102,41 @@ impl Board {
 
         //Wheel encoders
         let tim2 = embassy_stm32::timer::low_level::Timer::new(p.TIM2);
-        let mut tim2 = drivers::encoders::OneChannelEncodersTimer::new(tim2);
+        let tim2 = drivers::one_channel_encoder::Timer::new(tim2, Irqs);
+        let tim2 = WHEEL_ENCODERS_TIM.get_or_init(|| tim2);
 
-        tim2.add_channel(
-            CapturePin::<peripherals::TIM2, Ch1>::new(p.PA0, Pull::Up),
-            3,
-        );
-        tim2.add_channel(
-            CapturePin::<peripherals::TIM2, Ch3>::new(p.PB10, Pull::Up),
-            3,
-        );
-        tim2.add_channel(
-            CapturePin::<peripherals::TIM2, Ch4>::new(p.PB11, Pull::Up),
-            3,
+        let wheel_encoders = (
+            tim2.add_encoder(
+                CapturePin::<peripherals::TIM2, Ch1>::new(p.PA0, Pull::None),
+                WHEEL_ENCODER_FILTER,
+                WHEEL_ENCODER_MAX_PERIOD,
+            ),
+            tim2.add_encoder(
+                CapturePin::<peripherals::TIM2, Ch3>::new(p.PB10, Pull::None),
+                WHEEL_ENCODER_FILTER,
+                WHEEL_ENCODER_MAX_PERIOD,
+            ),
+            tim2.add_encoder(
+                CapturePin::<peripherals::TIM2, Ch4>::new(p.PB11, Pull::None),
+                WHEEL_ENCODER_FILTER,
+                WHEEL_ENCODER_MAX_PERIOD,
+            ),
         );
 
-        WHEEL_ENCODERS_TIM.get_or_init(|| tim2);
+        tim2.start();
 
         // Power command pin
         let pwr_cmd = Output::new(p.PG8, Level::High, Speed::Low);
 
         // Voltage sense ADC
-        let adc1 = adc::Adc::new_with_config(
-            p.ADC1,
-            AdcConfig {
-                resolution: Some(ADC1_RESOLUTION),
-            },
-        );
+        let adc1 = ADC1.get_or_init(|| {
+            Mutex::new(adc::Adc::new_with_config(
+                p.ADC1,
+                AdcConfig {
+                    resolution: Some(ADC1_RESOLUTION),
+                },
+            ))
+        });
 
         //Voltage LED pins
         let voltage_led_red = Output::new(p.PG6, Level::High, Speed::Low);
@@ -146,6 +144,7 @@ impl Board {
 
         Board {
             wheel_motors,
+            wheel_encoders,
             pwr_cmd,
             adc1,
             voltage_led_red,
