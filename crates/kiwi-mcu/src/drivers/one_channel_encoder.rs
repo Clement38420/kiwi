@@ -8,23 +8,20 @@ use embassy_stm32::timer::low_level::{
 };
 use embassy_stm32::timer::{GeneralInstance32bit4Channel, TimerChannel};
 
-pub struct Encoder<'d, T: GeneralInstance32bit4Channel, C: TimerChannel> {
+pub struct Encoder<'d, T: GeneralInstance32bit4Channel> {
     tim: &'d timer::low_level::Timer<'d, T>,
-    _pin: CapturePin<'static, T, C>,
     state: &'d EncoderState,
     max_period: u32,
 }
 
-impl<'d, T: GeneralInstance32bit4Channel, C: TimerChannel> Encoder<'d, T, C> {
+impl<'d, T: GeneralInstance32bit4Channel> Encoder<'d, T> {
     fn new(
         tim: &'d timer::low_level::Timer<'d, T>,
-        pin: CapturePin<'static, T, C>,
         state: &'d EncoderState,
         max_period: u32,
     ) -> Self {
         Self {
             tim,
-            _pin: pin,
             state,
             max_period,
         }
@@ -108,7 +105,7 @@ impl<T: GeneralInstance32bit4Channel> Timer<T> {
         _pin: CapturePin<'static, T, C>,
         filter_value: FilterValue,
         max_period: u32,
-    ) -> Encoder<'_, T, C> {
+    ) -> Encoder<'_, T> {
         let channel = C::CHANNEL;
 
         self.tim
@@ -119,9 +116,11 @@ impl<T: GeneralInstance32bit4Channel> Timer<T> {
         self.tim.set_input_capture_filter(channel, filter_value);
         self.tim.enable_channel(channel, true);
 
+        // This consumes the pin, but without dropping it. Forget it because the Encoder does not need it.
+        core::mem::forget(_pin);
+
         Encoder::new(
             &self.tim,
-            _pin,
             &self.encoder_states[channel as usize],
             max_period,
         )

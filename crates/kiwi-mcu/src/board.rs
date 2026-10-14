@@ -35,7 +35,6 @@
 //! | `PG7` | `GPIO` (Push-Pull) | Voltage status LED — Green |
 
 use crate::drivers;
-use crate::drivers::blm3650::Motor;
 use embassy_stm32::adc::{AdcChannel, AdcConfig, AnyAdcChannel, Resolution};
 use embassy_stm32::gpio::{Level, Output, OutputOpenDrain, OutputType, Pull, Speed};
 use embassy_stm32::interrupt::typelevel::Handler;
@@ -70,13 +69,13 @@ impl Handler<embassy_stm32::interrupt::typelevel::TIM2> for WheelEncodersIRQ {
     }
 }
 
+pub type WheelMotors = [drivers::blm3650::Motor<'static, peripherals::TIM3>; 3];
+
+pub type WheelEncoders = [drivers::one_channel_encoder::Encoder<'static, peripherals::TIM2>; 3];
+
 pub struct Board {
-    pub wheel_motors: [Motor<'static, peripherals::TIM3>; 3],
-    pub wheel_encoders: (
-        drivers::one_channel_encoder::Encoder<'static, peripherals::TIM2, Ch1>,
-        drivers::one_channel_encoder::Encoder<'static, peripherals::TIM2, Ch3>,
-        drivers::one_channel_encoder::Encoder<'static, peripherals::TIM2, Ch4>,
-    ),
+    pub wheel_motors: WheelMotors,
+    pub wheel_encoders: WheelEncoders,
     pub tim2: &'static drivers::one_channel_encoder::Timer<peripherals::TIM2>,
     pub pwr_cmd: Output<'static>,
     pub adc1: &'static Mutex<ThreadModeRawMutex, adc::Adc<'static, peripherals::ADC1>>,
@@ -114,9 +113,9 @@ impl Board {
         let SimplePwmChannels { ch1, ch2, ch3, .. } = tim3.split();
 
         let mut wheel_motors = [
-            Motor::new(ch1, pg0, pg1),
-            Motor::new(ch2, pg2, pg3),
-            Motor::new(ch3, pg4, pg5),
+            drivers::blm3650::Motor::new(ch1, pg0, pg1),
+            drivers::blm3650::Motor::new(ch2, pg2, pg3),
+            drivers::blm3650::Motor::new(ch3, pg4, pg5),
         ];
 
         for motor in wheel_motors.iter_mut() {
@@ -127,7 +126,7 @@ impl Board {
         let tim2 = drivers::one_channel_encoder::Timer::new(tim2, Irqs, mhz(1));
         let tim2 = WHEEL_ENCODERS_TIM.get_or_init(|| tim2);
 
-        let wheel_encoders = (
+        let wheel_encoders = [
             tim2.add_encoder(
                 CapturePin::<peripherals::TIM2, Ch1>::new(p.PA0, Pull::None),
                 WHEEL_ENCODER_FILTER,
@@ -143,7 +142,7 @@ impl Board {
                 WHEEL_ENCODER_FILTER,
                 WHEEL_ENCODER_MAX_PERIOD,
             ),
-        );
+        ];
 
         tim2.start();
 
