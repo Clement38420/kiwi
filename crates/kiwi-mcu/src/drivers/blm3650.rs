@@ -1,4 +1,5 @@
-use embassy_stm32::gpio::OutputOpenDrain;
+use embassy_stm32::Peri;
+use embassy_stm32::gpio::{Level, OutputOpenDrain, Pull, Speed};
 use embassy_stm32::timer::GeneralInstance4Channel;
 use embassy_stm32::timer::simple_pwm::SimplePwmChannel;
 
@@ -11,9 +12,14 @@ pub struct Motor<'d, T: GeneralInstance4Channel> {
 impl<'d, T: GeneralInstance4Channel> Motor<'d, T> {
     pub fn new(
         pwm_channel: SimplePwmChannel<'static, T>,
-        direction_pin: OutputOpenDrain<'d>,
-        brake_pin: OutputOpenDrain<'d>,
+        direction_pin: Peri<'d, impl embassy_stm32::gpio::Pin>,
+        brake_pin: Peri<'d, impl embassy_stm32::gpio::Pin>,
     ) -> Self {
+        // The BLM3650 ESC is controlled with open-drain pins with external pull-ups. The pins are set to high (open-drain) by default, which is the default state for the ESC.
+        let direction_pin =
+            OutputOpenDrain::new_pull(direction_pin, Level::High, Speed::Low, Pull::None);
+        let brake_pin = OutputOpenDrain::new_pull(brake_pin, Level::High, Speed::Low, Pull::None);
+
         Self {
             pwm_channel,
             direction_pin,

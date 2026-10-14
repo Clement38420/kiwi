@@ -36,7 +36,7 @@
 
 use crate::drivers;
 use embassy_stm32::adc::{AdcChannel, AdcConfig, AnyAdcChannel, Resolution};
-use embassy_stm32::gpio::{Level, Output, OutputOpenDrain, OutputType, Pull, Speed};
+use embassy_stm32::gpio::{Level, Output, OutputType, Pull, Speed};
 use embassy_stm32::interrupt::typelevel::Handler;
 use embassy_stm32::time::{Hertz, khz, mhz};
 use embassy_stm32::timer::input_capture::CapturePin;
@@ -102,20 +102,12 @@ impl Board {
             CountingMode::EdgeAlignedUp,
         );
 
-        // The BLM3650 ESC is controlled with open-drain pins with external pull-ups. The pins are set to high (open-drain) by default, which is the default state for the ESC.
-        let pg0 = OutputOpenDrain::new_pull(p.PG0, Level::High, Speed::Low, Pull::None);
-        let pg1 = OutputOpenDrain::new_pull(p.PG1, Level::High, Speed::Low, Pull::None);
-        let pg2 = OutputOpenDrain::new_pull(p.PG2, Level::High, Speed::Low, Pull::None);
-        let pg3 = OutputOpenDrain::new_pull(p.PG3, Level::High, Speed::Low, Pull::None);
-        let pg4 = OutputOpenDrain::new_pull(p.PG4, Level::High, Speed::Low, Pull::None);
-        let pg5 = OutputOpenDrain::new_pull(p.PG5, Level::High, Speed::Low, Pull::None);
-
         let SimplePwmChannels { ch1, ch2, ch3, .. } = tim3.split();
 
         let mut wheel_motors = [
-            drivers::blm3650::Motor::new(ch1, pg0, pg1),
-            drivers::blm3650::Motor::new(ch2, pg2, pg3),
-            drivers::blm3650::Motor::new(ch3, pg4, pg5),
+            drivers::blm3650::Motor::new(ch1, p.PG0, p.PG1),
+            drivers::blm3650::Motor::new(ch2, p.PG2, p.PG3),
+            drivers::blm3650::Motor::new(ch3, p.PG4, p.PG5),
         ];
 
         for motor in wheel_motors.iter_mut() {
