@@ -75,7 +75,7 @@ pub type WheelEncoders = [drivers::one_channel_encoder::Encoder<'static, periphe
 pub struct Board {
     pub wheel_motors: WheelMotors,
     pub wheel_encoders: WheelEncoders,
-    pub tim2: &'static drivers::one_channel_encoder::Timer<peripherals::TIM2>,
+    pub _tim2: &'static drivers::one_channel_encoder::Timer<peripherals::TIM2>,
     pub pwr_cmd: Output<'static>,
     pub adc1: &'static Mutex<ThreadModeRawMutex, adc::Adc<'static, peripherals::ADC1>>,
     pub voltage_led_red: Output<'static>,
@@ -155,7 +155,7 @@ impl Board {
         Board {
             wheel_motors,
             wheel_encoders,
-            tim2,
+            _tim2: tim2,
             pwr_cmd,
             adc1,
             voltage_led_red,
