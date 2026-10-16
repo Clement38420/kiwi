@@ -38,7 +38,7 @@ use crate::drivers;
 use embassy_stm32::adc::{AdcChannel, AdcConfig, AnyAdcChannel, Resolution};
 use embassy_stm32::gpio::{Level, Output, OutputType, Pull, Speed};
 use embassy_stm32::interrupt::typelevel::Handler;
-use embassy_stm32::time::{Hertz, khz, mhz};
+use embassy_stm32::time::{Hertz, mhz};
 use embassy_stm32::timer::input_capture::CapturePin;
 use embassy_stm32::timer::low_level::CountingMode;
 use embassy_stm32::timer::simple_pwm::{PwmPin, SimplePwm, SimplePwmChannels};
@@ -48,7 +48,6 @@ use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
 use embassy_sync::mutex::Mutex;
 use embassy_sync::once_lock::OnceLock;
 
-const BLM3650_PWM_FREQ: Hertz = khz(20);
 static WHEEL_ENCODERS_TIM: OnceLock<drivers::one_channel_encoder::Timer<peripherals::TIM2>> =
     OnceLock::new();
 const WHEEL_ENCODER_TIM_TICK: Hertz = mhz(1);
@@ -98,7 +97,7 @@ impl Board {
             Some(PwmPin::new(p.PA7, OutputType::PushPull)),
             Some(PwmPin::new(p.PB0, OutputType::PushPull)),
             None,
-            BLM3650_PWM_FREQ,
+            drivers::blm3650::PWM_FREQ,
             CountingMode::EdgeAlignedUp,
         );
 

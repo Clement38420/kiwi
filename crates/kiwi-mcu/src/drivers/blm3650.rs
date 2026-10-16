@@ -1,7 +1,13 @@
 use embassy_stm32::Peri;
 use embassy_stm32::gpio::{Level, OutputOpenDrain, Pull, Speed};
+use embassy_stm32::time::{Hertz, khz};
 use embassy_stm32::timer::GeneralInstance4Channel;
 use embassy_stm32::timer::simple_pwm::SimplePwmChannel;
+
+pub const PWM_FREQ: Hertz = khz(20);
+pub const PWM_MAX: f32 = 1.0;
+pub const PWM_MIN: f32 = -1.0;
+pub const PWM_DEAD_ZONE: f32 = 0.08;
 
 pub struct Motor<'d, T: GeneralInstance4Channel> {
     pwm_channel: SimplePwmChannel<'static, T>,
@@ -28,19 +34,19 @@ impl<'d, T: GeneralInstance4Channel> Motor<'d, T> {
     }
 
     pub fn enable(&mut self) {
-        self.set_pwm_speed(0.0);
+        self.set_pwm(0.0);
         self.pwm_channel.enable();
     }
 
-    /// Set the speed of the motor using PWM value between -1.0 and 1.0, where negative values indicate reverse direction. Brakes if speed is 0.0.
-    pub fn set_pwm_speed(&mut self, speed: f32) {
-        let speed = speed.clamp(-1.0, 1.0);
+    /// Set the PWM value of the timer between PWM_MIN and PWM_MAX, where negative values indicate reverse direction. Brakes if |pwm| is less than PWM_DEAD_ZONE.
+    pub fn set_pwm(&mut self, pwm: f32) {
+        let speed = pwm.clamp(PWM_MIN, PWM_MAX);
 
-        if speed > 0.0 {
+        if speed > PWM_DEAD_ZONE {
             self.direction_pin.set_high();
             // Open-drain command, high (open-drain, default state) means the brake is not active
             self.brake_pin.set_high();
-        } else if speed < 0.0 {
+        } else if speed < -PWM_DEAD_ZONE {
             self.direction_pin.set_low();
             self.brake_pin.set_high();
         } else {
