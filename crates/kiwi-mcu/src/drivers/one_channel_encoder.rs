@@ -9,17 +9,13 @@ use embassy_stm32::timer::{GeneralInstance32bit4Channel, TimerChannel};
 use embassy_stm32::{Peri, timer};
 
 pub struct Encoder<'d, T: GeneralInstance32bit4Channel> {
-    tim: &'d timer::low_level::Timer<'d, T>,
+    tim: &'d Timer<T>,
     state: &'d EncoderState,
     max_period: u32,
 }
 
 impl<'d, T: GeneralInstance32bit4Channel> Encoder<'d, T> {
-    fn new(
-        tim: &'d timer::low_level::Timer<'d, T>,
-        state: &'d EncoderState,
-        max_period: u32,
-    ) -> Self {
+    fn new(tim: &'d Timer<T>, state: &'d EncoderState, max_period: u32) -> Self {
         Self {
             tim,
             state,
@@ -27,9 +23,9 @@ impl<'d, T: GeneralInstance32bit4Channel> Encoder<'d, T> {
         }
     }
 
-    /// Returns the period of the last tick in timer ticks, or None if the encoder is not moving (i.e. the period is greater than max_period).
-    pub fn get_period(&self) -> Option<u32> {
+    fn get_period(&self) -> Option<u32> {
         if self
+            .tim
             .tim
             .regs_gp32()
             .cnt()
@@ -40,6 +36,14 @@ impl<'d, T: GeneralInstance32bit4Channel> Encoder<'d, T> {
             None
         } else {
             Some(self.state.get_period())
+        }
+    }
+
+    /// Returns the frequency of the encoder signal in Hz.
+    pub fn get_frequency(&self) -> f32 {
+        match self.get_period() {
+            Some(period) => self.tim.tick_freq.0 as f32 / period as f32,
+            None => 0.0,
         }
     }
 }
@@ -71,21 +75,23 @@ type EncoderStates = [EncoderState; 4];
 
 pub struct Timer<T: GeneralInstance32bit4Channel> {
     tim: timer::low_level::Timer<'static, T>,
+    tick_freq: Hertz,
     encoder_states: EncoderStates,
 }
 
 impl<T: GeneralInstance32bit4Channel> Timer<T> {
-    pub fn new<Irq, H>(tim: Peri<'static, T>, _irq: Irq, freq: Hertz) -> Self
+    pub fn new<Irq, H>(tim: Peri<'static, T>, _irq: Irq, tick_freq: Hertz) -> Self
     where
         H: Handler<T::CaptureCompareInterrupt>,
         Irq: Binding<T::CaptureCompareInterrupt, H>,
     {
-        let mut tim = embassy_stm32::timer::low_level::Timer::new(tim);
+        let mut tim = timer::low_level::Timer::new(tim);
         tim.set_counting_mode(CountingMode::EdgeAlignedUp);
-        tim.set_tick_freq(freq);
+        tim.set_tick_freq(tick_freq);
 
         Self {
             tim,
+            tick_freq,
             encoder_states: Default::default(),
         }
     }
@@ -120,11 +126,7 @@ impl<T: GeneralInstance32bit4Channel> Timer<T> {
         // This consumes the pin, but without dropping it. Forget it because the Encoder does not need it.
         core::mem::forget(_pin);
 
-        Encoder::new(
-            &self.tim,
-            &self.encoder_states[channel as usize],
-            max_period,
-        )
+        Encoder::new(&self, &self.encoder_states[channel as usize], max_period)
     }
 
     pub fn on_interrupt(&self) {

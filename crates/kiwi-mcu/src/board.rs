@@ -49,9 +49,9 @@ use embassy_sync::mutex::Mutex;
 use embassy_sync::once_lock::OnceLock;
 
 const BLM3650_PWM_FREQ: Hertz = khz(20);
-
 static WHEEL_ENCODERS_TIM: OnceLock<drivers::one_channel_encoder::Timer<peripherals::TIM2>> =
     OnceLock::new();
+const WHEEL_ENCODER_TIM_TICK: Hertz = mhz(1);
 const WHEEL_ENCODER_FILTER: embassy_stm32::timer::low_level::FilterValue =
     embassy_stm32::timer::low_level::FilterValue::FCK_INT_N8; // Timer clock is 16 MHz, so the filter cut-off is 500ns
 const WHEEL_ENCODER_MAX_PERIOD: u32 = 15_000;
@@ -114,7 +114,7 @@ impl Board {
             motor.enable();
         }
 
-        let tim2 = drivers::one_channel_encoder::Timer::new(p.TIM2, Irqs, mhz(1));
+        let tim2 = drivers::one_channel_encoder::Timer::new(p.TIM2, Irqs, WHEEL_ENCODER_TIM_TICK);
         let tim2 = WHEEL_ENCODERS_TIM.get_or_init(|| tim2);
 
         let wheel_encoders = [
