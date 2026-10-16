@@ -21,3 +21,6 @@ embassy-futures = "0.1.2"
 
 defmt = "1.1.1"
 defmt-rtt = "1.0.0"
+
+[profile.dev]
+opt-level = "s"
