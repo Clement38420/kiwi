@@ -53,7 +53,8 @@ static WHEEL_ENCODERS_TIM: OnceLock<drivers::one_channel_encoder::Timer<peripher
 const WHEEL_ENCODER_TIM_TICK: Hertz = mhz(1);
 const WHEEL_ENCODER_FILTER: embassy_stm32::timer::low_level::FilterValue =
     embassy_stm32::timer::low_level::FilterValue::FCK_INT_N8; // Timer clock is 16 MHz, so the filter cut-off is 500ns
-const WHEEL_ENCODER_MAX_PERIOD: u32 = 15_000;
+const WHEEL_ENCODER_MAX_PERIOD: u32 = 100_000;
+pub const WHEEL_ENCODER_RADIANS_PER_TICK: f32 = 1.0 / 6.0 / 27.0 * 2.0 * core::f32::consts::PI; // 6 * 27 ticks per revolution after the gearbox
 
 static ADC1: OnceLock<Mutex<ThreadModeRawMutex, adc::Adc<'static, peripherals::ADC1>>> =
     OnceLock::new();

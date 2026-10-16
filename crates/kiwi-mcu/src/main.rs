@@ -6,6 +6,7 @@ mod board;
 mod drivers;
 pub mod pid;
 mod safety;
+pub mod wheels;
 
 use crate::battery_management::{battery_led_task, battery_monitoring_task};
 use crate::safety::safety_task;
@@ -20,17 +21,16 @@ async fn main(spawner: Spawner) {
     let p = embassy_stm32::init(Default::default());
     info!("Salut moi c'est la mcu de Kiwi!");
 
-    let mut b = board::Board::init(p);
+    let b = board::Board::init(p);
 
-    for motor in b.wheel_motors.iter_mut() {
-        motor.set_pwm_speed(0.0);
-    }
+    Timer::after(embassy_time::Duration::from_millis(500)).await; // wait for the peripherals to stabilize
 
     spawner.spawn(battery_monitoring_task(b.adc1, b.voltage_sense).unwrap());
     spawner.spawn(battery_led_task(b.voltage_led_red, b.voltage_led_green).unwrap());
     spawner.spawn(safety_task(b.pwr_cmd).unwrap());
+    spawner.spawn(wheels::wheels_control_task(b.wheel_motors, b.wheel_encoders).unwrap());
 
     loop {
-        Timer::after(embassy_time::Duration::from_millis(1000)).await;
+        Timer::after(embassy_time::Duration::from_secs(1)).await;
     }
 }
