@@ -1,11 +1,11 @@
 use crate::board;
 use crate::board::{WheelEncoders, WheelMotors};
 use crate::drivers::blm3650;
-use crate::pid::PIDController;
 use core::array;
 use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
 use embassy_sync::signal::Signal;
 use embassy_time::Duration;
+use shared::pid::PIDController;
 
 const KP: f32 = 0.04;
 const KI: f32 = 0.05;

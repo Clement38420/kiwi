@@ -1,4 +1,4 @@
-use crate::battery_management::{BATTERY_STATUS, BatteryStatus};
+use super::battery_management::{BATTERY_STATUS, BatteryStatus};
 use defmt::error;
 use embassy_futures::select::select_array;
 use embassy_stm32::gpio::Output;
