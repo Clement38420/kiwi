@@ -11,4 +11,4 @@ BIN_NAME=$(basename "$LOCAL_ELF")
 ssh "$PI_HOST" "mkdir -p $REMOTE_DIR"
 rsync -az --inplace "$LOCAL_ELF" "$PI_HOST:$REMOTE_DIR/$BIN_NAME"
 
-ssh -t "$PI_HOST" "source ~/.cargo/env && probe-rs run --chip $CHIP $REMOTE_DIR/$BIN_NAME"
+ssh -t "$PI_HOST" "source ~/.cargo/env && probe-rs run --chip $CHIP $REMOTE_DIR/$BIN_NAME --speed 4600"
