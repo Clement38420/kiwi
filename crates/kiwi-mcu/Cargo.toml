@@ -23,6 +23,7 @@ defmt = "1.1.1"
 defmt-rtt = "1.0.0"
 
 shared = { path = "../shared" }
+embedded-io-async = "0.7.0"
 
 [profile.dev]
 opt-level = "s"

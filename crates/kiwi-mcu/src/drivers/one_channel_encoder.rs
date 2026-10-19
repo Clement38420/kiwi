@@ -58,7 +58,7 @@ impl EncoderState {
     #[inline]
     fn update_period(&self, count: u32) {
         self.tick_period.store(
-            // The wrapping_sub handles the case where the counter overflows (in the case where the period is less than 2^32 ticks)
+            // The wrapping_sub handles the case where the counter overflows (only if the period is less than 2^32 ticks)
             count.wrapping_sub(self.prev_count.load(Ordering::Relaxed)),
             Ordering::Relaxed,
         );

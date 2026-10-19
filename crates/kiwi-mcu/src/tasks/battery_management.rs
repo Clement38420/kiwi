@@ -1,4 +1,3 @@
-use defmt::Format;
 use embassy_stm32::adc::{Adc, AnyAdcChannel, SampleTime};
 use embassy_stm32::gpio::Output;
 use embassy_stm32::peripherals::ADC1;
@@ -8,7 +7,7 @@ use embassy_sync::watch::Watch;
 
 pub static BATTERY_STATUS: Watch<ThreadModeRawMutex, BatteryStatus, 2> = Watch::new();
 
-#[derive(PartialEq, Copy, Clone, Format)]
+#[derive(PartialEq, Copy, Clone)]
 pub enum BatteryStatus {
     High,
     Medium,
@@ -16,48 +15,42 @@ pub enum BatteryStatus {
     Critical,
 }
 
+impl BatteryStatus {
+    fn threshold(&self) -> StatusThresholds {
+        match self {
+            BatteryStatus::High => StatusThresholds {
+                exit_up: None,
+                exit_down: Some((533, BatteryStatus::Medium)), // = 19.2V
+            },
+            BatteryStatus::Medium => StatusThresholds {
+                exit_up: Some((541, BatteryStatus::High)),  // = 19.5V
+                exit_down: Some((516, BatteryStatus::Low)), // = 18.6V
+            },
+            BatteryStatus::Low => StatusThresholds {
+                exit_up: Some((524, BatteryStatus::Medium)), // = 18.9V
+                exit_down: Some((483, BatteryStatus::Critical)), // = 17.4V
+            },
+            BatteryStatus::Critical => StatusThresholds {
+                exit_up: Some((494, BatteryStatus::Low)), // = 17.8V
+                exit_down: None,
+            },
+        }
+    }
+}
+
 struct StatusThresholds {
-    status: BatteryStatus,
     exit_down: Option<(u16, BatteryStatus)>,
     exit_up: Option<(u16, BatteryStatus)>,
 }
 
-const THRESHOLDS: [StatusThresholds; 4] = [
-    StatusThresholds {
-        status: BatteryStatus::High,
-        exit_up: None,
-        exit_down: Some((533, BatteryStatus::Medium)), // = 19.2V
-    },
-    StatusThresholds {
-        status: BatteryStatus::Medium,
-        exit_up: Some((541, BatteryStatus::High)), // = 19.5V
-        exit_down: Some((516, BatteryStatus::Low)), // = 18.6V
-    },
-    StatusThresholds {
-        status: BatteryStatus::Low,
-        exit_up: Some((524, BatteryStatus::Medium)), // = 18.9V
-        exit_down: Some((483, BatteryStatus::Critical)), // = 17.4V
-    },
-    StatusThresholds {
-        status: BatteryStatus::Critical,
-        exit_up: Some((494, BatteryStatus::Low)), // = 17.8V
-        exit_down: None,
-    },
-];
-
 pub fn get_battery_status(current_status: &BatteryStatus, raw_adc: u16) -> BatteryStatus {
-    let rule = THRESHOLDS
-        .iter()
-        .find(|t| t.status == *current_status)
-        .unwrap();
-
-    if let Some((threshold, next)) = rule.exit_down {
+    if let Some((threshold, next)) = current_status.threshold().exit_down {
         if raw_adc < threshold {
             return next;
         }
     }
 
-    if let Some((threshold, next)) = rule.exit_up {
+    if let Some((threshold, next)) = current_status.threshold().exit_up {
         if raw_adc > threshold {
             return next;
         }
@@ -94,7 +87,10 @@ pub async fn battery_led_task(
     mut led_red_pin: Output<'static>,
     mut led_green_pin: Output<'static>,
 ) {
-    let mut receiver = BATTERY_STATUS.receiver().unwrap();
+    let mut receiver = defmt::expect!(
+        BATTERY_STATUS.receiver(),
+        "BATTERY LED TASK: No more battery status receiver available."
+    );
 
     let mut ticker = embassy_time::Ticker::every(embassy_time::Duration::from_millis(500));
     loop {

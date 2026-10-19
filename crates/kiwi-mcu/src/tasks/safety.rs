@@ -8,7 +8,10 @@ pub enum SafetyReason {
 }
 
 async fn battery_safety_check() -> SafetyReason {
-    let mut receiver = BATTERY_STATUS.receiver().unwrap();
+    let mut receiver = defmt::expect!(
+        BATTERY_STATUS.receiver(),
+        "SAFETY TASK: No more battery status receiver available."
+    );
 
     loop {
         if receiver.changed().await == BatteryStatus::Critical {
@@ -27,7 +30,7 @@ pub async fn safety_task(mut pwr_cmd: Output<'static>) {
             SafetyReason::BatteryCriticalVoltage => {
                 // Cut power to the system
                 pwr_cmd.set_low();
-                error!("Safety task: Battery critical! Cutting power to the system.");
+                error!("SAFETY TASK: Battery critical! Cutting power to the system.");
             }
         }
     }

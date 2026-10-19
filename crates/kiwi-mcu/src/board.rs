@@ -33,26 +33,34 @@
 //! | `PC0` | `ADC1` (10-bit) | Voltage sense (`voltage_sense`) |
 //! | `PG6` | `GPIO` (Push-Pull) | Voltage status LED — Red |
 //! | `PG7` | `GPIO` (Push-Pull) | Voltage status LED — Green |
+//!
+//! ## Communication (`USART1`)
+//! Buffered UART with interrupt-driven RX/TX, 8N1, 115200 baud.
+//!
+//! | Pin | Peripheral / Mode | Description |
+//! | :--- | :--- | :--- |
+//! | `PB14` | `USART1_RX` | UART RX |
+//! | `PB15` | `USART1_TX` | UART TX |
 
 use crate::drivers;
-use embassy_stm32::adc::{AdcChannel, AdcConfig, AnyAdcChannel, Resolution};
-use embassy_stm32::gpio::{Level, Output, OutputType, Pull, Speed};
-use embassy_stm32::interrupt::typelevel::Handler;
-use embassy_stm32::time::{Hertz, mhz};
-use embassy_stm32::timer::input_capture::CapturePin;
-use embassy_stm32::timer::low_level::CountingMode;
-use embassy_stm32::timer::simple_pwm::{PwmPin, SimplePwm, SimplePwmChannels};
-use embassy_stm32::timer::{Ch1, Ch3, Ch4};
-use embassy_stm32::{Peripherals, adc, bind_interrupts, peripherals};
-use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
-use embassy_sync::mutex::Mutex;
-use embassy_sync::once_lock::OnceLock;
+use embassy_stm32::{
+    adc::{AdcChannel, AdcConfig, AnyAdcChannel, Resolution},
+    gpio::{Level, Output, OutputType, Pull, Speed},
+    interrupt::typelevel::Handler,
+    time::{Hertz, mhz},
+    timer::{
+        input_capture::CapturePin,
+        low_level::{CountingMode, FilterValue},
+        simple_pwm::{PwmPin, SimplePwm, SimplePwmChannels},
+    },
+    {Peripherals, adc, bind_interrupts, interrupt, peripherals, timer, usart},
+};
+use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, mutex::Mutex, once_lock::OnceLock};
 
 static WHEEL_ENCODERS_TIM: OnceLock<drivers::one_channel_encoder::Timer<peripherals::TIM2>> =
     OnceLock::new();
 const WHEEL_ENCODER_TIM_TICK: Hertz = mhz(1);
-const WHEEL_ENCODER_FILTER: embassy_stm32::timer::low_level::FilterValue =
-    embassy_stm32::timer::low_level::FilterValue::FCK_INT_N8; // Timer clock is 16 MHz, so the filter cut-off is 500ns
+const WHEEL_ENCODER_FILTER: FilterValue = FilterValue::FCK_INT_N8; // Timer clock is 16 MHz, so the filter cut-off is 500ns
 const WHEEL_ENCODER_MAX_PERIOD: u32 = 100_000;
 pub const WHEEL_ENCODER_RADIANS_PER_TICK: f32 = 1.0 / 6.0 / 27.0 * 2.0 * core::f32::consts::PI; // 6 * 27 ticks per revolution after the gearbox
 
@@ -60,8 +68,14 @@ static ADC1: OnceLock<Mutex<ThreadModeRawMutex, adc::Adc<'static, peripherals::A
     OnceLock::new();
 const ADC1_RESOLUTION: Resolution = Resolution::BITS10;
 
+const UART1_BAUDRATE: u32 = 115_200;
+pub const UART1_RX_BUFFER_SIZE: usize = 256;
+pub const UART1_TX_BUFFER_SIZE: usize = 256;
+static mut UART1_RX_BUFFER: [u8; UART1_RX_BUFFER_SIZE] = [0; UART1_RX_BUFFER_SIZE];
+static mut UART1_TX_BUFFER: [u8; UART1_TX_BUFFER_SIZE] = [0; UART1_TX_BUFFER_SIZE];
+
 struct WheelEncodersIRQ;
-impl Handler<embassy_stm32::interrupt::typelevel::TIM2> for WheelEncodersIRQ {
+impl Handler<interrupt::typelevel::TIM2> for WheelEncodersIRQ {
     unsafe fn on_interrupt() {
         if let Some(tim) = WHEEL_ENCODERS_TIM.try_get() {
             tim.on_interrupt();
@@ -82,13 +96,19 @@ pub struct Board {
     pub voltage_led_red: Output<'static>,
     pub voltage_led_green: Output<'static>,
     pub voltage_sense: AnyAdcChannel<'static, peripherals::ADC1>,
+    pub uart1: usart::BufferedUart<'static>,
+}
+
+pub enum BoardInitError {
+    Uart(usart::ConfigError),
 }
 
 impl Board {
-    pub fn init(p: Peripherals) -> Board {
+    pub fn init(p: Peripherals) -> Result<Board, BoardInitError> {
         bind_interrupts!(
             struct Irqs {
                 TIM2 => WheelEncodersIRQ;
+                USART1 => usart::BufferedInterruptHandler<peripherals::USART1>;
             }
         );
 
@@ -119,17 +139,17 @@ impl Board {
 
         let wheel_encoders = [
             tim2.add_encoder(
-                CapturePin::<peripherals::TIM2, Ch1>::new(p.PA0, Pull::None),
+                CapturePin::<peripherals::TIM2, timer::Ch1>::new(p.PA0, Pull::None),
                 WHEEL_ENCODER_FILTER,
                 WHEEL_ENCODER_MAX_PERIOD,
             ),
             tim2.add_encoder(
-                CapturePin::<peripherals::TIM2, Ch3>::new(p.PB10, Pull::None),
+                CapturePin::<peripherals::TIM2, timer::Ch3>::new(p.PB10, Pull::None),
                 WHEEL_ENCODER_FILTER,
                 WHEEL_ENCODER_MAX_PERIOD,
             ),
             tim2.add_encoder(
-                CapturePin::<peripherals::TIM2, Ch4>::new(p.PB11, Pull::None),
+                CapturePin::<peripherals::TIM2, timer::Ch4>::new(p.PB11, Pull::None),
                 WHEEL_ENCODER_FILTER,
                 WHEEL_ENCODER_MAX_PERIOD,
             ),
@@ -153,7 +173,21 @@ impl Board {
         let voltage_led_red = Output::new(p.PG6, Level::High, Speed::Low);
         let voltage_led_green = Output::new(p.PG7, Level::High, Speed::Low);
 
-        Board {
+        let mut uart1_config = usart::Config::default(); // Default config is 8N1
+        uart1_config.baudrate = UART1_BAUDRATE;
+
+        let uart1 = usart::BufferedUart::new(
+            p.USART1,
+            p.PB15,
+            p.PB14,
+            unsafe { &mut UART1_RX_BUFFER[..] },
+            unsafe { &mut UART1_TX_BUFFER[..] },
+            Irqs,
+            uart1_config,
+        )
+        .map_err(|err| BoardInitError::Uart(err))?;
+
+        Ok(Board {
             wheel_motors,
             wheel_encoders,
             _tim2: tim2,
@@ -162,6 +196,7 @@ impl Board {
             voltage_led_red,
             voltage_led_green,
             voltage_sense: p.PC0.degrade_adc(),
-        }
+            uart1,
+        })
     }
 }
