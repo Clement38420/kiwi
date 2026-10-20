@@ -71,8 +71,8 @@ pub fn decode(buffer: &mut [u8]) -> Result<Message, DecodeError> {
 }
 
 #[derive(defmt::Format, Debug)]
-pub enum EncodeError {
-    SerializeError,
+pub enum EncodeError<T> {
+    SerializeError(T),
     MessageTooLarge,
 }
 
@@ -80,9 +80,9 @@ pub fn encode(
     message: &Message,
     buffer: &mut [u8],
     computation_buffer: &mut [u8],
-) -> Result<usize, EncodeError> {
+) -> Result<usize, EncodeError<postcard::Error>> {
     let message_len = postcard::to_slice(message, computation_buffer)
-        .map_err(|_| EncodeError::SerializeError)?
+        .map_err(|e| EncodeError::SerializeError(e))?
         .len();
 
     if max_encoding_length(message_len + 2) + 1 > min(computation_buffer.len(), buffer.len()) {
