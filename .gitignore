@@ -1,6 +1,7 @@
 # EXTERNAL
-CAO/
-docs/ST/
+CAO
+docs/ST
+docs/Lidar
 
 # BUILD FILES
 crates/*/target
