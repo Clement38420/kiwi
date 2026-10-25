@@ -99,6 +99,7 @@ pub struct Board {
     pub uart1: usart::BufferedUart<'static>,
 }
 
+#[derive(Debug)]
 pub enum BoardInitError {
     Uart(usart::ConfigError),
 }
@@ -130,7 +131,7 @@ impl Board {
             drivers::blm3650::Motor::new(ch3, p.PG4, p.PG5),
         ];
 
-        for motor in wheel_motors.iter_mut() {
+        for motor in &mut wheel_motors {
             motor.enable();
         }
 
@@ -185,7 +186,7 @@ impl Board {
             Irqs,
             uart1_config,
         )
-        .map_err(|err| BoardInitError::Uart(err))?;
+        .map_err(BoardInitError::Uart)?;
 
         Ok(Board {
             wheel_motors,

@@ -13,4 +13,12 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  server: {
+    proxy: {
+      '/ws': {
+        target: 'ws://kiwi.local:8080',
+        ws: true,
+      },
+    },
+  },
 })

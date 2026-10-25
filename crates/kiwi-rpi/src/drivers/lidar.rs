@@ -23,6 +23,12 @@ impl From<u8> for ScanPacketType {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct DataPoint {
+    pub angle: f32,
+    pub distance: f32,
+}
+
 struct ScanPacket {
     package_type: ScanPacketType,
     sample_qty: u8,
@@ -64,12 +70,6 @@ impl From<tokio_serial::Error> for LidarError {
 impl std::error::Error for LidarError {}
 
 pub type LidarResult<T> = Result<T, LidarError>;
-
-#[derive(Debug, Clone, Copy)]
-pub struct DataPoint {
-    pub angle: f32,
-    pub distance: f32,
-}
 
 pub struct Lidar {
     port: tokio_serial::SerialStream,

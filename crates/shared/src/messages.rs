@@ -2,40 +2,26 @@ use cobs::max_encoding_length;
 use core::cmp::min;
 use crc::Crc;
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "ts")]
+use ts_rs::TS;
 
-#[derive(Serialize, Deserialize, Default, Copy, Clone, Debug)]
-pub struct WheelSpeedSetpoint(pub f32);
-
-impl WheelSpeedSetpoint {
-    pub fn value(&self) -> f32 {
-        self.0
-    }
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+#[cfg_attr(feature = "ts", derive(TS), ts(export))]
+pub struct LidarPoint {
+    pub angle: f32,
+    pub distance: f32,
 }
 
-impl From<f32> for WheelSpeedSetpoint {
-    fn from(value: f32) -> Self {
-        Self(value)
-    }
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum RpiToMcu {
+    WheelSpeedSetpoints([f32; 3]),
 }
 
-#[derive(Serialize, Deserialize, Default, Copy, Clone, Debug)]
-pub struct WheelSpeedSetpoints(pub [WheelSpeedSetpoint; 3]);
-
-impl WheelSpeedSetpoints {
-    pub fn values(&self) -> [f32; 3] {
-        self.0.map(|setpoint| setpoint.value())
-    }
-}
-
-impl From<[f32; 3]> for WheelSpeedSetpoints {
-    fn from(values: [f32; 3]) -> Self {
-        Self(values.map(WheelSpeedSetpoint::from))
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub enum Message {
-    WheelSpeedSetpoints(WheelSpeedSetpoints),
+#[cfg(feature = "std")]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(TS), ts(export))]
+pub enum RpiToGcs {
+    LidarScan(std::sync::Arc<Vec<LidarPoint>>),
 }
 
 const CRC: Crc<u16> = Crc::<u16>::new(&crc::CRC_16_MODBUS);
@@ -48,7 +34,7 @@ pub enum DecodeError {
     DeserializeError,
 }
 
-pub fn decode(buffer: &mut [u8]) -> Result<Message, DecodeError> {
+pub fn decode<'a, T: Deserialize<'a>>(buffer: &'a mut [u8]) -> Result<T, DecodeError> {
     let decoded_len =
         cobs::decode_in_place(&mut buffer[..]).map_err(|_| DecodeError::CobsDecodeError)?;
     let message = &buffer[..decoded_len];
@@ -76,13 +62,13 @@ pub enum EncodeError<T> {
     MessageTooLarge,
 }
 
-pub fn encode(
-    message: &Message,
+pub fn encode<T: Serialize>(
+    message: &T,
     buffer: &mut [u8],
     computation_buffer: &mut [u8],
 ) -> Result<usize, EncodeError<postcard::Error>> {
     let message_len = postcard::to_slice(message, computation_buffer)
-        .map_err(|e| EncodeError::SerializeError(e))?
+        .map_err(EncodeError::SerializeError)?
         .len();
 
     if max_encoding_length(message_len + 2) + 1 > min(computation_buffer.len(), buffer.len()) {

@@ -5,7 +5,6 @@ use core::array;
 use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
 use embassy_sync::signal::Signal;
 use embassy_time::Duration;
-use shared::messages::WheelSpeedSetpoints;
 use shared::pid::PIDController;
 
 const KP: f32 = 0.04;
@@ -21,10 +20,9 @@ const WHEELS_CONTROL_TASK_DT: Duration = Duration::from_millis(1);
 pub const SETPOINTS_TIMEOUT: Duration = Duration::from_millis(1000);
 /// A signal that holds the desired wheel speed setpoints. This signal will be considered stale if it is not updated for SETPOINTS_TIMEOUT.
 /// The wheels control task will stop the wheels if the signal is stale.
-pub(crate) static WHEEL_SPEED_SETPOINTS: Signal<ThreadModeRawMutex, WheelSpeedSetpoints> =
-    Signal::new();
+pub(crate) static WHEEL_SPEED_SETPOINTS: Signal<ThreadModeRawMutex, [f32; 3]> = Signal::new();
 
-fn get_wheel_speed_setpoints() -> Option<WheelSpeedSetpoints> {
+fn get_wheel_speed_setpoints() -> Option<[f32; 3]> {
     WHEEL_SPEED_SETPOINTS.try_take()
 }
 
@@ -53,7 +51,7 @@ pub async fn wheels_control_task(mut wheel_motors: WheelMotors, mut wheel_encode
     });
     let mut cmds = [0.0f32; 3];
     let mut speeds = [[0.0f32; SPEED_FILTER_WINDOW]; 3];
-    let mut setpoints = WheelSpeedSetpoints::default();
+    let mut setpoints = [0.0f32; 3];
 
     let mut last_setpoints_timestamp = embassy_time::Instant::now();
 
@@ -69,7 +67,7 @@ pub async fn wheels_control_task(mut wheel_motors: WheelMotors, mut wheel_encode
             None => {
                 // This prevents the wheels from continuing to spin if the setpoints are not updated for a long time. (no signal from the controller ahead)
                 if last_setpoints_timestamp.elapsed() > SETPOINTS_TIMEOUT {
-                    WheelSpeedSetpoints::default()
+                    [0.0f32; 3]
                 } else {
                     setpoints
                 }
@@ -82,7 +80,7 @@ pub async fn wheels_control_task(mut wheel_motors: WheelMotors, mut wheel_encode
             let motor = &mut wheel_motors[i];
             let cmd = &mut cmds[i];
             let speeds = &mut speeds[i];
-            let setpoint = setpoints.values()[i];
+            let setpoint = setpoints[i];
 
             speeds.rotate_right(1); // Makes room for the new speed measurement at index 0
             speeds[0] = encoder.get_frequency()

@@ -16,8 +16,16 @@ async fn main(spawner: Spawner) {
     let p = embassy_stm32::init(Default::default());
     info!("Salut moi c'est la mcu de Kiwi!");
 
-    let Ok(b) = board::Board::init(p) else {
-        panic!("MAIN: Failed to initialize board.");
+    let b = match board::Board::init(p) {
+        Ok(board) => board,
+        Err(e) => match e {
+            board::BoardInitError::Uart(e) => {
+                panic!(
+                    "MAIN: Failed to initialize UART: {:?}",
+                    defmt::Debug2Format(&e)
+                );
+            }
+        },
     };
 
     Timer::after(embassy_time::Duration::from_millis(500)).await; // wait for the peripherals to stabilize

@@ -1,11 +1,21 @@
 use crate::drivers;
+use shared::messages::LidarPoint;
 use std::sync::Arc;
 use tokio::sync::watch;
 
 const LIDAR_PORT: &str = "/dev/ttyUSB0";
 const LIDAR_BAUD_RATE: u32 = 512_000;
 
-pub async fn lidar_task(tx: watch::Sender<Arc<Vec<drivers::lidar::DataPoint>>>) {
+impl From<drivers::lidar::DataPoint> for LidarPoint {
+    fn from(pt: drivers::lidar::DataPoint) -> Self {
+        Self {
+            angle: pt.angle,
+            distance: pt.distance,
+        }
+    }
+}
+
+pub async fn lidar_task(tx: watch::Sender<Arc<Vec<LidarPoint>>>) {
     let mut lidar: drivers::lidar::Lidar = loop {
         let lidar_port_builder = tokio_serial::new(LIDAR_PORT, LIDAR_BAUD_RATE)
             .parity(tokio_serial::Parity::None)
@@ -28,8 +38,8 @@ pub async fn lidar_task(tx: watch::Sender<Arc<Vec<drivers::lidar::DataPoint>>>) 
                 break;
             }
             Err(e) => {
-                eprintln!("LIDAR: Error starting the scan: {e}");
-                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                eprintln!("LIDAR: Error starting the scan: {e}, retrying in 5 second...");
+                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
             }
         }
     }
@@ -37,7 +47,8 @@ pub async fn lidar_task(tx: watch::Sender<Arc<Vec<drivers::lidar::DataPoint>>>) 
     loop {
         match lidar.read_scan_full_revolution().await {
             Ok(points) => {
-                let _ = tx.send(Arc::new(points));
+                let shared_points = points.into_iter().map(Into::into).collect();
+                let _ = tx.send(Arc::new(shared_points));
             }
             Err(e) => {
                 eprintln!("LIDAR: Error reading scan packet: {e}");
