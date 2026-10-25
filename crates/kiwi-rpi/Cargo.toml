@@ -6,6 +6,8 @@ edition = "2024"
 [dependencies]
 tokio = { version = "1.54.0", features = ["rt", "rt-multi-thread", "macros", "time", "io-util", "sync", "signal"] }
 tokio-serial = { version = "5.5.0" }
+axum = "0.8"
+rust-embed = { version = "8.5", features = ["debug-embed", "mime-guess"] }
 
 [profile.dev]
 opt-level = "s"
