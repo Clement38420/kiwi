@@ -8,3 +8,8 @@ crates/*/target
 
 # IDE FILES
 .idea
+
+# AI
+.gemini
+.agents
+skills
