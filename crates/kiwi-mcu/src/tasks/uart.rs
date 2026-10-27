@@ -7,7 +7,7 @@ use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
 use embassy_sync::channel;
 use embedded_io_async::{Read, Write};
 use shared::messages;
-use shared::messages::RpiToMcu;
+use shared::messages::{McuToRpi, RpiToMcu};
 
 #[embassy_executor::task]
 pub async fn uart_task(uart: usart::BufferedUart<'static>) {
@@ -56,7 +56,7 @@ async fn uart_rx_task(mut uart: usart::BufferedUartRx<'static>) {
     }
 }
 
-pub static TX_CHANNEL: channel::Channel<ThreadModeRawMutex, RpiToMcu, 4> = channel::Channel::new();
+pub static TX_CHANNEL: channel::Channel<ThreadModeRawMutex, McuToRpi, 4> = channel::Channel::new();
 
 async fn uart_tx_task(mut uart: usart::BufferedUartTx<'static>) {
     loop {
