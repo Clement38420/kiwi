@@ -1,5 +1,5 @@
 use std::fmt::Display;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio_serial::{ClearBuffer, SerialPort, SerialPortBuilderExt};
 
 const STOP_SCAN_CMD: [u8; 2] = [0xA5, 0x65];
@@ -72,7 +72,7 @@ impl std::error::Error for LidarError {}
 pub type LidarResult<T> = Result<T, LidarError>;
 
 pub struct Lidar {
-    port: tokio_serial::SerialStream,
+    port: BufReader<tokio_serial::SerialStream>,
 }
 
 impl Lidar {
@@ -81,7 +81,7 @@ impl Lidar {
     /// # Errors
     /// Returns `LidarError::Serial` if the serial port could not be opened
     pub fn new(port_builder: tokio_serial::SerialPortBuilder) -> LidarResult<Self> {
-        let port = port_builder.open_native_async()?;
+        let port = BufReader::new(port_builder.open_native_async()?);
         Ok(Self { port })
     }
 
@@ -94,7 +94,7 @@ impl Lidar {
         self.port.write_all(&START_SCAN_CMD).await?;
 
         tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await; // Wait for the LIDAR motor to stabilize
-        self.port.clear(ClearBuffer::Input)?;
+        self.port.get_mut().clear(ClearBuffer::Input)?;
 
         loop {
             match self.read_scan_packet().await {
@@ -243,7 +243,7 @@ impl Lidar {
 
 impl Drop for Lidar {
     fn drop(&mut self) {
-        let _ = std::io::Write::write_all(&mut self.port, &STOP_SCAN_CMD);
-        let _ = std::io::Write::flush(&mut self.port);
+        let _ = std::io::Write::write_all(&mut self.port.get_mut(), &STOP_SCAN_CMD);
+        let _ = std::io::Write::flush(&mut self.port.get_mut());
     }
 }
