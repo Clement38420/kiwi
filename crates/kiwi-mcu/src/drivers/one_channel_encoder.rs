@@ -42,8 +42,8 @@ impl<'d, T: GeneralInstance32bit4Channel> Encoder<'d, T> {
     /// Returns the frequency of the encoder signal in Hz.
     pub fn get_frequency(&self) -> f32 {
         match self.get_period() {
-            Some(period) => self.tim.tick_freq.0 as f32 / period as f32,
-            None => 0.0,
+            Some(period) if period > 0 => self.tim.tick_freq.0 as f32 / period as f32,
+            _ => 0.0,
         }
     }
 }
