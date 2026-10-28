@@ -56,6 +56,7 @@ use embassy_stm32::{
     {Peripherals, adc, bind_interrupts, interrupt, peripherals, timer, usart},
 };
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, mutex::Mutex, once_lock::OnceLock};
+use static_cell::ConstStaticCell;
 
 static WHEEL_ENCODERS_TIM: OnceLock<drivers::one_channel_encoder::Timer<peripherals::TIM2>> =
     OnceLock::new();
@@ -71,8 +72,10 @@ const ADC1_RESOLUTION: Resolution = Resolution::BITS10;
 const UART1_BAUDRATE: u32 = 115_200;
 pub const UART1_RX_BUFFER_SIZE: usize = 256;
 pub const UART1_TX_BUFFER_SIZE: usize = 256;
-static mut UART1_RX_BUFFER: [u8; UART1_RX_BUFFER_SIZE] = [0; UART1_RX_BUFFER_SIZE];
-static mut UART1_TX_BUFFER: [u8; UART1_TX_BUFFER_SIZE] = [0; UART1_TX_BUFFER_SIZE];
+static UART1_RX_BUFFER: ConstStaticCell<[u8; UART1_RX_BUFFER_SIZE]> =
+    ConstStaticCell::new([0; UART1_RX_BUFFER_SIZE]);
+static UART1_TX_BUFFER: ConstStaticCell<[u8; UART1_TX_BUFFER_SIZE]> =
+    ConstStaticCell::new([0; UART1_TX_BUFFER_SIZE]);
 
 struct WheelEncodersIRQ;
 impl Handler<interrupt::typelevel::TIM2> for WheelEncodersIRQ {
@@ -181,8 +184,8 @@ impl Board {
             p.USART1,
             p.PB15,
             p.PB14,
-            unsafe { &mut UART1_RX_BUFFER[..] },
-            unsafe { &mut UART1_TX_BUFFER[..] },
+            UART1_RX_BUFFER.take(),
+            UART1_TX_BUFFER.take(),
             Irqs,
             uart1_config,
         )
