@@ -1,0 +1,958 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Kiwi GCS — Brand guidelines</title>
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap"
+    />
+    <style>
+      :root,
+      .th-l {
+        --bg: #f8fafc;
+        --sf: #fff;
+        --sf2: #f1f5f9;
+        --line: #e2e8f0;
+        --ink: #0f172a;
+        --mut: #475569;
+        --kiwi: #84cc16;
+        --kt: #4d7c0f;
+        --tint: #ecfccb;
+        --spark: #fbbf24;
+        --ok: #10b981;
+        --info: #0ea5e9;
+        --warn: #f97316;
+        --crit: #dc2626;
+        --head: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+        --body: 'Inter', system-ui, sans-serif;
+        --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+        box-sizing: border-box;
+        padding-top: env(safe-area-inset-top, 0px);
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+      }
+      .th-l {
+        --wheel: initial;
+        --tri: initial;
+        --ibg: initial;
+        --ibd: initial;
+        padding: 0;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme='light']) {
+          --bg: #0b1220;
+          --sf: #111a2e;
+          --sf2: #172238;
+          --line: #243047;
+          --ink: #f1f5f9;
+          --mut: #94a3b8;
+          --kt: #a3e635;
+          --tint: #1c2a0d;
+          --ok: #34d399;
+          --info: #38bdf8;
+          --warn: #fb923c;
+          --crit: #ef4444;
+          --wheel: #e2e8f0;
+          --tri: #a3e635;
+          --ibg: #151f35;
+          --ibd: #2a3857;
+        }
+      }
+      :root[data-theme='dark'],
+      .th-d {
+        --bg: #0b1220;
+        --sf: #111a2e;
+        --sf2: #172238;
+        --line: #243047;
+        --ink: #f1f5f9;
+        --mut: #94a3b8;
+        --kt: #a3e635;
+        --tint: #1c2a0d;
+        --ok: #34d399;
+        --info: #38bdf8;
+        --warn: #fb923c;
+        --crit: #ef4444;
+        --wheel: #e2e8f0;
+        --tri: #a3e635;
+        --ibg: #151f35;
+        --ibd: #2a3857;
+      }
+      .th-d {
+        padding: 0;
+      }
+      html {
+        scroll-padding-top: calc(env(safe-area-inset-top, 0px) + 64px);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font: 16px/1.6 var(--body);
+      }
+      body::before {
+        content: '';
+        position: fixed;
+        inset: 0 0 auto;
+        height: env(safe-area-inset-top, 0px);
+        background: var(--bg);
+        z-index: 10;
+      }
+      .top {
+        position: sticky;
+        top: env(safe-area-inset-top, 0px);
+        z-index: 9;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 20px;
+        background: var(--bg);
+        border-bottom: 1px solid var(--line);
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font: 700 18px var(--head);
+      }
+      .brand span {
+        color: var(--kt);
+      }
+      #tg {
+        font: 600 13px var(--body);
+        background: var(--sf);
+        color: var(--ink);
+        border: 1px solid var(--line);
+        border-radius: 99px;
+        padding: 8px 14px;
+        cursor: pointer;
+      }
+      main {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 32px 20px 80px;
+      }
+      h1,
+      h2,
+      h3 {
+        font-family: var(--head);
+        margin: 0;
+        letter-spacing: -0.02em;
+      }
+      h1 {
+        font-size: clamp(36px, 7vw, 60px);
+        line-height: 1.05;
+      }
+      h2 {
+        font-size: 28px;
+        margin: 64px 0 8px;
+      }
+      h3 {
+        font-size: 16px;
+        margin: 0 0 6px;
+      }
+      p {
+        margin: 0 0 12px;
+        color: var(--mut);
+      }
+      .kick {
+        font: 500 12px var(--mono);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--kt);
+      }
+      .hero {
+        display: grid;
+        grid-template-columns: 1fr 200px;
+        gap: 32px;
+        align-items: center;
+        padding: 24px 0;
+      }
+      .hero svg {
+        width: 100%;
+        height: auto;
+        filter: drop-shadow(0 14px 22px rgba(0, 0, 0, 0.18));
+      }
+      @media (max-width: 640px) {
+        .hero {
+          grid-template-columns: 1fr;
+        }
+        .hero svg {
+          max-width: 160px;
+        }
+      }
+      .grid {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      }
+      .card {
+        background: var(--sf);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 20px;
+      }
+      .lb {
+        border-radius: 12px;
+        display: grid;
+        place-items: center;
+        aspect-ratio: 1.4;
+        margin-bottom: 12px;
+        border: 1px solid var(--line);
+        background: var(--sf2);
+      }
+      .lb svg {
+        width: 46%;
+        height: auto;
+      }
+      .th-l,
+      .th-d {
+        background: var(--bg);
+        color: var(--ink);
+        border-radius: 14px;
+      }
+      .tbl {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        overflow: hidden;
+        background: var(--sf);
+      }
+      .row {
+        display: grid;
+        grid-template-columns: 130px 1fr 1fr 1.6fr;
+        gap: 10px;
+        align-items: center;
+        padding: 10px 14px;
+        border-bottom: 1px solid var(--line);
+        font-size: 13px;
+      }
+      .row:last-child {
+        border-bottom: 0;
+      }
+      .row.h {
+        color: var(--mut);
+        font: 500 11px var(--mono);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        background: var(--sf2);
+      }
+      .row b {
+        font: 600 14px var(--head);
+      }
+      .row code {
+        font: 12px var(--mono);
+        color: var(--mut);
+      }
+      .c {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .c i {
+        width: 22px;
+        height: 22px;
+        border-radius: 7px;
+        border: 1px solid var(--line);
+        flex: none;
+      }
+      @media (max-width: 640px) {
+        .row {
+          grid-template-columns: 100px 1fr 1fr;
+        }
+        .row em {
+          grid-column: 1/-1;
+          font-style: normal;
+          color: var(--mut);
+        }
+      }
+      .bar {
+        display: flex;
+        height: 40px;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        margin: 14px 0 6px;
+        font: 500 11px var(--mono);
+      }
+      .bar span {
+        display: grid;
+        place-items: center;
+        color: #0f172a;
+      }
+      ul {
+        margin: 0;
+        padding-left: 18px;
+        color: var(--mut);
+      }
+      li {
+        margin-bottom: 6px;
+      }
+      .do li::marker {
+        color: var(--ok);
+      }
+      .dont li::marker {
+        color: var(--crit);
+      }
+      .spec {
+        font-family: var(--head);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+      }
+      td,
+      th {
+        padding: 8px 6px;
+        border-bottom: 1px solid var(--line);
+        text-align: left;
+      }
+      th {
+        color: var(--mut);
+        font-weight: 500;
+      }
+      .pv {
+        padding: 16px;
+        border: 1px solid var(--line);
+      }
+      .pnl {
+        display: grid;
+        gap: 12px;
+      }
+      .bt {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: var(--sf);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 10px 14px;
+      }
+      .bt .brand {
+        font-size: 15px;
+      }
+      .btn {
+        font: 600 13px var(--body);
+        border: 0;
+        border-radius: 10px;
+        padding: 9px 14px;
+        cursor: pointer;
+      }
+      .b1 {
+        background: var(--kiwi);
+        color: #0f172a;
+      }
+      .b2 {
+        background: var(--sf2);
+        color: var(--ink);
+        border: 1px solid var(--line);
+      }
+      .b3 {
+        background: #dc2626;
+        color: #fff;
+      }
+      .tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font: 500 11px var(--mono);
+        padding: 4px 10px;
+        border-radius: 99px;
+        border: 1px solid var(--line);
+        background: var(--sf);
+        color: var(--ink);
+      }
+      .tag:before {
+        content: '';
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--c);
+      }
+      .tel {
+        font: 13px var(--mono);
+      }
+      .tel div {
+        display: flex;
+        justify-content: space-between;
+        padding: 6px 0;
+        border-bottom: 1px dashed var(--line);
+      }
+      .tel b {
+        font-weight: 500;
+      }
+      .inp {
+        width: 100%;
+        background: var(--sf2);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 9px 12px;
+        color: var(--ink);
+        font: 13px var(--mono);
+      }
+      .inp:focus {
+        outline: 2px solid var(--kiwi);
+      }
+      .pg {
+        height: 8px;
+        border-radius: 9px;
+        background: var(--sf2);
+        overflow: hidden;
+      }
+      .pg i {
+        display: block;
+        height: 100%;
+        width: 72%;
+        background: var(--kiwi);
+      }
+      .live {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font: 12px var(--mono);
+        color: var(--mut);
+      }
+      .live i {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--spark);
+        box-shadow: 0 0 0 4px color-mix(in srgb, var(--spark) 25%, transparent);
+      }
+      .sp {
+        display: flex;
+        gap: 10px;
+        align-items: flex-end;
+        flex-wrap: wrap;
+      }
+      .sp i {
+        display: block;
+        background: var(--kiwi);
+        border-radius: 4px;
+        opacity: 0.8;
+      }
+      .rd {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .rd i {
+        width: 64px;
+        height: 64px;
+        border: 2px solid var(--kt);
+        background: var(--tint);
+        display: grid;
+        place-items: center;
+        font: 11px var(--mono);
+        font-style: normal;
+        color: var(--ink);
+      }
+      pre {
+        background: #0f172a;
+        color: #e2e8f0;
+        border-radius: 12px;
+        padding: 16px;
+        overflow-x: auto;
+        font: 12px/1.5 var(--mono);
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+      <defs>
+        <linearGradient id="kiwi" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#a3e635" />
+          <stop offset="1" stop-color="#4d7c0f" />
+        </linearGradient>
+        <linearGradient id="gr" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#334155" />
+          <stop offset="1" stop-color="#0f172a" />
+        </linearGradient>
+        <linearGradient id="kiwiD" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#d9f99d" />
+          <stop offset="1" stop-color="#65a30d" />
+        </linearGradient>
+        <linearGradient id="grD" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#f8fafc" />
+          <stop offset="1" stop-color="#94a3b8" />
+        </linearGradient>
+        <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#fff" />
+          <stop offset="1" stop-color="#f1f5f9" />
+        </linearGradient>
+        <linearGradient id="bd" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#e2e8f0" />
+          <stop offset="1" stop-color="#cbd5e1" />
+        </linearGradient>
+        <symbol id="glyph" viewBox="0 0 512 512">
+          <g transform="translate(6 -11) rotate(12 256 276)">
+            <path
+              d="M217.9 194A44 44 0 0 1 294.1 194L345.9 284A44 44 0 0 1 307.8 350L204.2 350A44 44 0 0 1 166.1 284Z"
+              fill="none"
+              stroke="var(--tri,url(#kiwi))"
+              stroke-width="40"
+              stroke-linejoin="round"
+            />
+            <g style="fill: var(--wheel, url(#gr))">
+              <rect
+                x="-46"
+                y="-20"
+                width="92"
+                height="40"
+                rx="20"
+                transform="translate(394.6 356) rotate(120)"
+              />
+              <rect
+                x="-46"
+                y="-20"
+                width="92"
+                height="40"
+                rx="20"
+                transform="translate(117.4 356) rotate(60)"
+              />
+              <rect x="-46" y="-20" width="92" height="40" rx="20" transform="translate(256 116)" />
+              <circle cx="256" cy="276" r="28" />
+            </g>
+          </g>
+          <circle cx="262" cy="265" r="9" style="fill: var(--eye, #fbbf24)" />
+        </symbol>
+        <symbol id="icon" viewBox="0 0 512 512">
+          <rect
+            x="32"
+            y="32"
+            width="448"
+            height="448"
+            rx="102"
+            stroke-width="2"
+            style="fill: var(--ibg, url(#bg)); stroke: var(--ibd, url(#bd))"
+          />
+          <g transform="translate(12.8 12.8) scale(.95)"><use href="#glyph" /></g>
+        </symbol>
+      </defs>
+    </svg>
+
+    <header class="top">
+      <div class="brand">
+        <svg width="28" height="28" viewBox="0 0 512 512"><use href="#glyph" /></svg>Kiwi
+        <span>GCS</span>
+      </div>
+      <button id="tg" type="button">Dark mode</button>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div>
+          <div class="kick">Brand guidelines · v1.0</div>
+          <h1>Kiwi GCS</h1>
+          <p style="font-size: 18px; max-width: 46ch; margin-top: 14px">
+            A ground control station that is clear, precise and a little playful. A three-wheeled
+            kiwi robot: vivid green for identity, graphite for rigor, room to breathe everywhere.
+            Designed light-first, with a full dark mode.
+          </p>
+        </div>
+        <svg viewBox="0 0 512 512" role="img" aria-label="Logo Kiwi GCS"><use href="#icon" /></svg>
+      </section>
+
+      <h2>1. Logo</h2>
+      <p>
+        A rounded kiwi triangle, three wheels at the tips, a central eye. The whole mark is tilted
+        12° to suggest movement. The yellow dot in the eye is the brand’s only warm touch.
+      </p>
+      <div class="grid">
+        <div class="card">
+          <div class="lb th-l">
+            <svg viewBox="0 0 512 512" style="--wheel: initial; --tri: initial">
+              <use href="#glyph" />
+            </svg>
+          </div>
+          <h3>Primary</h3>
+          <p>On a light background. Graphite wheels, kiwi triangle.</p>
+        </div>
+        <div class="card">
+          <div class="lb th-d">
+            <svg viewBox="0 0 512 512"><use href="#glyph" /></svg>
+          </div>
+          <h3>Dark</h3>
+          <p>Light wheels, lime triangle. Dark mode uses it automatically.</p>
+        </div>
+        <div class="card">
+          <div class="lb" style="background: #ecfccb">
+            <svg viewBox="0 0 512 512" style="--wheel: #4d7c0f; --tri: #4d7c0f; --eye: #ecfccb">
+              <use href="#glyph" />
+            </svg>
+          </div>
+          <h3>Monochrome</h3>
+          <p>One tint for print, stamps and engraving.</p>
+        </div>
+      </div>
+      <div class="grid" style="margin-top: 16px">
+        <div class="card">
+          <h3>App icon</h3>
+          <div style="display: flex; gap: 14px">
+            <div class="th-l" style="padding: 12px">
+              <svg width="96" height="96" viewBox="0 0 512 512"><use href="#icon" /></svg>
+            </div>
+            <div class="th-d" style="padding: 12px">
+              <svg width="96" height="96" viewBox="0 0 512 512"><use href="#icon" /></svg>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Wordmark</h3>
+          <div style="display: flex; align-items: center; gap: 12px; margin: 10px 0">
+            <svg width="56" height="56" viewBox="0 0 512 512"><use href="#glyph" /></svg
+            ><span class="spec" style="font-size: 34px; font-weight: 700; letter-spacing: -0.02em"
+              >Kiwi <span style="color: var(--kt)">GCS</span></span
+            >
+          </div>
+          <p style="margin: 0; font-size: 13px">Space Grotesk 700. “GCS” in the kiwi text color.</p>
+        </div>
+        <div class="card">
+          <h3>Sizes</h3>
+          <div style="display: flex; align-items: flex-end; gap: 18px">
+            <svg width="96" height="96" viewBox="0 0 512 512"><use href="#glyph" /></svg
+            ><svg width="48" height="48" viewBox="0 0 512 512"><use href="#glyph" /></svg
+            ><svg width="24" height="24" viewBox="0 0 512 512"><use href="#glyph" /></svg
+            ><svg width="16" height="16" viewBox="0 0 512 512"><use href="#glyph" /></svg>
+          </div>
+          <p style="margin: 8px 0 0; font-size: 13px">
+            Minimum: 16 px (symbol), 96 px wide (wordmark).
+          </p>
+        </div>
+      </div>
+      <div class="grid" style="margin-top: 16px">
+        <div class="card">
+          <h3>Do</h3>
+          <ul class="do">
+            <li>
+              Leave clear space around the logo equal to one wheel’s thickness (≈ 1/5 of its
+              height).
+            </li>
+            <li>Use the dark version on any dark background.</li>
+            <li>Keep the eye yellow, except in monochrome.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Avoid</h3>
+          <ul class="dont">
+            <li>Stretching, rotating differently or removing a wheel.</li>
+            <li>Recoloring the wheels green or yellow.</li>
+            <li>Placing the logo on a green background or a busy photo.</li>
+          </ul>
+        </div>
+      </div>
+
+      <h2>2. Colors</h2>
+      <p>
+        Each color has a role in both modes. Kiwi green stays the same; the neutrals, the text green
+        and the states adapt.
+      </p>
+      <h3 style="margin-top: 20px">Brand</h3>
+      <div class="tbl" id="t-brand"></div>
+      <h3 style="margin-top: 20px">Interface neutrals</h3>
+      <div class="tbl" id="t-neu"></div>
+      <h3 style="margin-top: 20px">States (link, GPS, battery, alerts)</h3>
+      <p style="font-size: 14px">
+        Reserved for the system’s real status. Warning uses orange so it is never confused with the
+        brand’s yellow spark.
+      </p>
+      <div class="tbl" id="t-st"></div>
+      <h3 style="margin-top: 24px">Distribution</h3>
+      <div class="bar">
+        <span style="flex: 85; background: var(--sf2); color: var(--ink)">Neutrals 85 %</span
+        ><span style="flex: 14; background: var(--kiwi)">Kiwi 14 %</span
+        ><span style="flex: 1; background: var(--spark)"></span>
+      </div>
+      <p style="font-size: 13px">
+        Spark ≈ 1 %: a single warm dot per screen (“robot active” indicator, loading, empty state).
+        Never for an alert, never as text.
+      </p>
+      <div class="grid" style="margin-top: 12px">
+        <div class="card">
+          <h3>Contrast</h3>
+          <ul>
+            <li>Green text: use kiwi text, never the vivid kiwi on white.</li>
+            <li>On a kiwi or spark background: graphite text <code>#0F172A</code>.</li>
+            <li>States are never carried by color alone: add an icon or a label.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Dark mode</h3>
+          <ul>
+            <li>Midnight-blue backgrounds, not pure black: less eye strain on night flights.</li>
+            <li>No pure white: text is <code>#F1F5F9</code>.</li>
+            <li>Surfaces are told apart by tint and a thin outline, not by shadow.</li>
+          </ul>
+        </div>
+      </div>
+
+      <h2>3. Typography</h2>
+      <div class="grid">
+        <div class="card">
+          <div class="kick">Headings</div>
+          <div
+            class="spec"
+            style="
+              font-size: 38px;
+              font-weight: 700;
+              letter-spacing: -0.02em;
+              line-height: 1.1;
+              margin: 8px 0;
+            "
+          >
+            Space Grotesk
+          </div>
+          <p>Geometric, technical, with character. 500 to 700.</p>
+        </div>
+        <div class="card">
+          <div class="kick">Interface</div>
+          <div
+            style="
+              font-size: 38px;
+              font-weight: 600;
+              letter-spacing: -0.02em;
+              line-height: 1.1;
+              margin: 8px 0;
+            "
+          >
+            Inter
+          </div>
+          <p>Very legible at small sizes. 400, 500, 600.</p>
+        </div>
+        <div class="card">
+          <div class="kick">Data</div>
+          <div style="font: 500 32px/1.2 var(--mono); margin: 8px 0">JetBrains Mono</div>
+          <p>Fixed width: telemetry, coordinates, logs.</p>
+        </div>
+      </div>
+      <div class="card" style="margin-top: 16px">
+        <table>
+          <tr>
+            <th>Level</th>
+            <th>Font</th>
+            <th>Size</th>
+            <th>Weight</th>
+          </tr>
+          <tr>
+            <td>Page title</td>
+            <td>Space Grotesk</td>
+            <td>28 px</td>
+            <td>700</td>
+          </tr>
+          <tr>
+            <td>Panel title</td>
+            <td>Space Grotesk</td>
+            <td>16 px</td>
+            <td>600</td>
+          </tr>
+          <tr>
+            <td>Body text</td>
+            <td>Inter</td>
+            <td>14 px</td>
+            <td>400</td>
+          </tr>
+          <tr>
+            <td>Label, button</td>
+            <td>Inter</td>
+            <td>13 px</td>
+            <td>600</td>
+          </tr>
+          <tr>
+            <td>Telemetry value</td>
+            <td>JetBrains Mono</td>
+            <td>13–24 px</td>
+            <td>500</td>
+          </tr>
+          <tr>
+            <td>Technical label</td>
+            <td>JetBrains Mono</td>
+            <td>11 px, uppercase</td>
+            <td>500</td>
+          </tr>
+        </table>
+      </div>
+
+      <h2>4. Components in light and dark</h2>
+      <p>
+        The same components, the same variables. Only the theme changes. The button at the top of
+        the page switches the whole guide.
+      </p>
+      <div class="grid" id="pv"></div>
+
+      <h2>5. Shapes and spacing</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>Spacing (4 px base)</h3>
+          <div class="sp">
+            <i style="width: 4px; height: 4px"></i><i style="width: 8px; height: 8px"></i
+            ><i style="width: 12px; height: 12px"></i><i style="width: 16px; height: 16px"></i
+            ><i style="width: 24px; height: 24px"></i><i style="width: 32px; height: 32px"></i>
+          </div>
+          <p style="margin: 8px 0 0; font-size: 13px">
+            4 · 8 · 12 · 16 · 24 · 32. Panels: 16 px inner padding.
+          </p>
+        </div>
+        <div class="card">
+          <h3>Radii</h3>
+          <div class="rd">
+            <i style="border-radius: 8px">8</i><i style="border-radius: 12px">12</i
+            ><i style="border-radius: 16px">16</i><i style="border-radius: 99px">pill</i>
+          </div>
+          <p style="margin: 8px 0 0; font-size: 13px">
+            8: fields · 12: buttons, cards · 16: large panels · pill: tags.
+          </p>
+        </div>
+        <div class="card">
+          <h3>Borders and shadows</h3>
+          <p style="font-size: 13px">
+            1 px border everywhere. Light: very soft shadow <code>0 2px 8px</code> at 6 % black.
+            Dark: no shadow, just the border.
+          </p>
+        </div>
+      </div>
+
+      <h2>6. CSS variables</h2>
+      <pre>
+:root {
+  --bg:#F8FAFC; --surface:#FFFFFF; --surface-2:#F1F5F9; --line:#E2E8F0;
+  --ink:#0F172A; --ink-muted:#475569;
+  --kiwi:#84CC16; --kiwi-text:#4D7C0F; --kiwi-tint:#ECFCCB; --spark:#FBBF24;
+  --ok:#10B981; --info:#0EA5E9; --warn:#F97316; --crit:#DC2626;
+}
+[data-theme="dark"] {
+  --bg:#0B1220; --surface:#111A2E; --surface-2:#172238; --line:#243047;
+  --ink:#F1F5F9; --ink-muted:#94A3B8;
+  --kiwi-text:#A3E635; --kiwi-tint:#1C2A0D;
+  --ok:#34D399; --info:#38BDF8; --warn:#FB923C; --crit:#EF4444;
+}
+/* --kiwi and --spark do not change between modes */</pre>
+    </main>
+
+    <template id="tp">
+      <div class="pnl">
+        <div class="bt">
+          <div class="brand">
+            <svg width="22" height="22" viewBox="0 0 512 512"><use href="#glyph" /></svg>Kiwi
+            <span>GCS</span>
+          </div>
+          <span class="live"><i></i>Robot active</span>
+        </div>
+        <div class="card">
+          <div class="tel">
+            <div>Altitude <b>42.8 m</b></div>
+            <div>Speed <b>11.3 m/s</b></div>
+            <div>Heading <b>287°</b></div>
+            <div style="border: 0">Battery <b style="color: var(--kt)">72 %</b></div>
+          </div>
+          <div class="pg" style="margin-top: 8px"><i></i></div>
+        </div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap">
+          <button class="btn b1">Arm</button><button class="btn b2">Mission</button
+          ><button class="btn b3">Stop</button>
+        </div>
+        <div style="display: flex; gap: 6px; flex-wrap: wrap">
+          <span class="tag" style="--c: var(--ok)">GPS 3D</span
+          ><span class="tag" style="--c: var(--info)">LINK 92 %</span
+          ><span class="tag" style="--c: var(--warn)">BATT 24 %</span
+          ><span class="tag" style="--c: var(--crit)">GEOFENCE</span>
+        </div>
+        <input class="inp" value="WPT-04 · 38.7223, -9.1393" aria-label="Waypoint" />
+      </div>
+    </template>
+
+    <script>
+      var R = document.documentElement,
+        B = document.getElementById('tg')
+      function dk() {
+        return R.dataset.theme
+          ? R.dataset.theme === 'dark'
+          : matchMedia('(prefers-color-scheme: dark)').matches
+      }
+      function lab() {
+        B.textContent = dk() ? 'Light mode' : 'Dark mode'
+      }
+      B.onclick = function () {
+        R.dataset.theme = dk() ? 'light' : 'dark'
+        lab()
+      }
+      lab()
+      function tb(id, rows, u) {
+        var h =
+          '<div class="row h"><span>Name</span><span>Light</span><span>Dark</span>' +
+          (u ? '<span>Usage</span>' : '') +
+          '</div>'
+        rows.forEach(function (r) {
+          h +=
+            '<div class="row"><b>' +
+            r[0] +
+            '</b><span class="c"><i style="background:' +
+            r[1] +
+            '"></i><code>' +
+            r[1] +
+            '</code></span><span class="c"><i style="background:' +
+            r[2] +
+            '"></i><code>' +
+            r[2] +
+            '</code></span>' +
+            (r[3] ? '<em style="font-style:normal;color:var(--mut)">' + r[3] + '</em>' : '') +
+            '</div>'
+        })
+        document.getElementById(id).innerHTML = h
+      }
+      tb(
+        't-brand',
+        [
+          ['Kiwi', '#84CC16', '#84CC16', 'Primary button, selection, gauge'],
+          ['Kiwi text', '#4D7C0F', '#A3E635', 'Green text and icons'],
+          ['Kiwi tint', '#ECFCCB', '#1C2A0D', 'Selection background, badge'],
+          ['Spark', '#FBBF24', '#FBBF24', 'Logo eye, one dot per screen'],
+          ['Graphite', '#0F172A', '#E2E8F0', 'Logo wheels, text (inverts)'],
+        ],
+        1,
+      )
+      tb(
+        't-neu',
+        [
+          ['Background', '#F8FAFC', '#0B1220', 'App background'],
+          ['Surface', '#FFFFFF', '#111A2E', 'Cards, panels'],
+          ['Surface 2', '#F1F5F9', '#172238', 'Fields, recessed areas'],
+          ['Border', '#E2E8F0', '#243047', '1 px borders'],
+          ['Text', '#0F172A', '#F1F5F9', 'Main text'],
+          ['Text 2', '#475569', '#94A3B8', 'Labels, help'],
+        ],
+        1,
+      )
+      tb(
+        't-st',
+        [
+          ['Nominal', '#10B981', '#34D399', 'GPS fix, good link'],
+          ['Info', '#0EA5E9', '#38BDF8', 'Message, flight mode'],
+          ['Warning', '#F97316', '#FB923C', 'Low battery, weak signal'],
+          ['Critical', '#DC2626', '#EF4444', 'Link lost, emergency'],
+        ],
+        1,
+      )
+      var t = document.getElementById('tp').innerHTML,
+        pv = document.getElementById('pv')
+      ;[
+        ['th-l', 'Light'],
+        ['th-d', 'Dark'],
+      ].forEach(function (x) {
+        var d = document.createElement('div')
+        d.innerHTML =
+          '<div class="kick" style="margin-bottom:8px">' +
+          x[1] +
+          '</div><div class="pv ' +
+          x[0] +
+          '">' +
+          t +
+          '</div>'
+        pv.appendChild(d)
+      })
+    </script>
+  </body>
+</html>

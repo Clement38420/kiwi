@@ -4,4 +4,4 @@ target = "aarch64-unknown-linux-gnu"
 [target.aarch64-unknown-linux-gnu]
 linker = "aarch64-unknown-linux-gnu-gcc"
 
-runner = "./remote-run.sh"
+runner = "./deploy.sh"

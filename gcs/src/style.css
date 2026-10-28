@@ -1,1 +1,247 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap');
+
 @import 'tailwindcss';
+
+@theme static {
+  --color-background: light-dark(#f8fafc, #0b1220);
+  --color-surface: light-dark(#ffffff, #111a2e);
+  --color-surface-2: light-dark(#f1f5f9, #172238);
+  --color-line: light-dark(#e2e8f0, #243047);
+  --color-ink: light-dark(#0f172a, #f1f5f9);
+  --color-ink-muted: light-dark(#475569, #94a3b8);
+
+  --color-kiwi: #84cc16;
+  --color-kiwi-text: light-dark(#4d7c0f, #a3e635);
+  --color-kiwi-tint: light-dark(#ecfccb, #1c2a0d);
+  --color-on-kiwi: #0f172a;
+
+  --color-spark: #fbbf24;
+
+  --color-ok: light-dark(#10b981, #34d399);
+  --color-info: light-dark(#0ea5e9, #38bdf8);
+  --color-warn: light-dark(#ffc505, #ffd041);
+  --color-crit: light-dark(#dc2626, #ef4444);
+}
+
+@theme {
+  --color-kiwi-50: #f7fee7;
+  --color-kiwi-100: #ecfccb;
+  --color-kiwi-200: #d9f99d;
+  --color-kiwi-300: #bef264;
+  --color-kiwi-400: #a3e635;
+  --color-kiwi-500: #84cc16;
+  --color-kiwi-600: #65a30d;
+  --color-kiwi-700: #4d7c0f;
+  --color-kiwi-800: #3f6212;
+  --color-kiwi-900: #365314;
+
+  --color-graphite-50: #f8fafc;
+  --color-graphite-100: #f1f5f9;
+  --color-graphite-200: #e2e8f0;
+  --color-graphite-300: #cbd5e1;
+  --color-graphite-400: #94a3b8;
+  --color-graphite-500: #64748b;
+  --color-graphite-600: #475569;
+  --color-graphite-700: #334155;
+  --color-graphite-800: #1e293b;
+  --color-graphite-900: #0f172a;
+  --color-graphite-950: #0b1220;
+
+  --color-success: #10b981;
+  --color-info: #0ea5e9;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+
+  --font-display: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+
+  --radius-field: 0.5rem;
+  --radius-control: 0.75rem;
+  --radius-panel: 1rem;
+
+  --shadow-panel:
+    0 1px 2px light-dark(rgb(15 23 42 / 0.05), transparent),
+    0 2px 8px light-dark(rgb(15 23 42 / 0.06), transparent);
+  --shadow-pop:
+    0 8px 24px light-dark(rgb(15 23 42 / 0.12), rgb(0 0 0 / 0.45)),
+    0 2px 6px light-dark(rgb(15 23 42 / 0.08), transparent);
+
+  --ease-kiwi: cubic-bezier(0.22, 1, 0.36, 1);
+  --animate-spark-pulse: spark-pulse 2s ease-in-out infinite;
+  --animate-fade-up: fade-up 0.25s var(--ease-kiwi) both;
+
+  @keyframes spark-pulse {
+    0% {
+      box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-spark) 45%, transparent);
+    }
+    50% {
+      box-shadow: 0 0 0 6px transparent;
+    }
+    100% {
+      box-shadow: 0 0 0 6px transparent;
+    }
+  }
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
+@layer base {
+  :root {
+    color-scheme: light dark;
+  }
+  [data-theme='light'] {
+    color-scheme: light;
+  }
+  [data-theme='dark'] {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-background;
+  }
+
+  *,
+  ::before,
+  ::after,
+  ::backdrop {
+    border-color: var(--color-line);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-display tracking-tight text-ink;
+  }
+  h1 {
+    @apply text-3xl font-bold;
+  }
+  h2 {
+    @apply text-2xl font-bold;
+  }
+  h3 {
+    @apply text-base font-semibold;
+  }
+
+  code,
+  kbd,
+  samp,
+  pre {
+    @apply font-mono;
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--color-kiwi) 35%, transparent);
+  }
+
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-kiwi;
+  }
+
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']),
+  summary {
+    cursor: pointer;
+  }
+
+  /* Can be useful in outside environments */
+  @media (prefers-contrast: more) {
+    :root {
+      --color-line: light-dark(#94a3b8, #64748b);
+      --color-ink-muted: light-dark(#334155, #cbd5e1);
+    }
+  }
+
+  @media print {
+    :root {
+      color-scheme: light;
+    }
+  }
+}
+
+@layer components {
+  .logo-mark {
+    --tri: url(#kiwi-grad);
+    --wheel: url(#kiwi-graphite);
+    --eye: var(--color-spark);
+    @variant dark {
+      --tri: #a3e635;
+      --wheel: #e2e8f0;
+    }
+  }
+  .logo-mark-mono {
+    --tri: var(--color-kiwi-text);
+    --wheel: var(--color-kiwi-text);
+    --eye: var(--color-kiwi-tint);
+  }
+  .logo-icon {
+    --ibg: light-dark(#ffffff, #151f35);
+    --ibd: light-dark(#e2e8f0, #2a3857);
+  }
+  .brand {
+    @apply flex items-center gap-[0.4em] font-display font-bold tracking-tight text-ink select-none;
+  }
+  .brand > svg {
+    @apply size-[1.5em]! shrink-0;
+  }
+  .brand > span {
+    @apply inline-flex gap-[0.5em];
+  }
+  .brand-accent {
+    @apply text-kiwi-text;
+  }
+
+  .group,
+  .card {
+    @apply rounded-panel border p-4 relative w-fit h-fit;
+  }
+  .group:has(> .group-title) {
+    @apply mt-4;
+  }
+  .group-title {
+    @apply uppercase font-mono text-kiwi-text absolute left-0 -top-6.5 text-[0.8rem] tracking-widest font-medium;
+  }
+  .card {
+    @apply bg-surface shadow-panel;
+  }
+
+  .dot,
+  .living-dot {
+    @apply inline-block rounded-full size-[0.5em] shrink-0;
+  }
+  .living-dot {
+    @apply bg-spark! animate-spark-pulse;
+  }
+
+  .tel-list {
+    @apply divide-y divide-dashed font-mono;
+  }
+  .tel-row {
+    @apply flex flex-col gap-2 py-2.5 first:pt-0 last:pb-0;
+  }
+  .tel-header {
+    @apply flex justify-between items-center gap-4;
+  }
+  .tel-label {
+    @apply text-ink-muted;
+  }
+  .tel-value {
+    @apply flex items-center gap-2 font-medium;
+  }
+
+  .progress-bar {
+    @apply relative w-full h-[0.5em] bg-graphite-200 dark:bg-graphite-700 rounded-full overflow-hidden;
+  }
+  .progress-fill {
+    @apply absolute top-0 left-0 h-full w-full origin-left;
+  }
+}

@@ -1,5 +1,4 @@
 use cobs::max_encoding_length;
-use core::cmp::min;
 use crc::Crc;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "ts")]
@@ -12,9 +11,16 @@ pub struct LidarPoint {
     pub distance: f32,
 }
 
+pub type BatteryVoltage = f32;
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum RpiToMcu {
     WheelSpeedSetpoints([f32; 3]),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum McuToRpi {
+    BatteryVoltage(BatteryVoltage),
 }
 
 #[cfg(feature = "std")]
@@ -22,6 +28,7 @@ pub enum RpiToMcu {
 #[cfg_attr(feature = "ts", derive(TS), ts(export))]
 pub enum RpiToGcs {
     LidarScan(std::sync::Arc<Vec<LidarPoint>>),
+    BatteryVoltage(BatteryVoltage),
 }
 
 const CRC: Crc<u16> = Crc::<u16>::new(&crc::CRC_16_MODBUS);
@@ -62,6 +69,10 @@ pub enum EncodeError<T> {
     MessageTooLarge,
 }
 
+#[cfg(not(feature = "std"))]
+use core::cmp::min;
+
+#[cfg(not(feature = "std"))]
 pub fn encode<T: Serialize>(
     message: &T,
     buffer: &mut [u8],
@@ -84,4 +95,18 @@ pub fn encode<T: Serialize>(
     buffer[encoded_len] = 0x00;
 
     Ok(encoded_len + 1)
+}
+
+#[cfg(feature = "std")]
+pub fn encode<T: Serialize>(message: &T) -> Result<Vec<u8>, EncodeError<postcard::Error>> {
+    let mut payload = postcard::to_stdvec(message).map_err(EncodeError::SerializeError)?;
+    let crc = CRC.checksum(&payload);
+    payload.extend_from_slice(&crc.to_le_bytes());
+
+    let mut buffer = vec![0u8; max_encoding_length(payload.len()) + 1];
+    let encoded_len = cobs::encode(&payload, &mut buffer);
+    buffer[encoded_len] = 0x00;
+    buffer.truncate(encoded_len + 1);
+
+    Ok(buffer)
 }

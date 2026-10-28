@@ -7,7 +7,7 @@ use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
 use embassy_sync::channel;
 use embedded_io_async::{Read, Write};
 use shared::messages;
-use shared::messages::{McuToRpi, RpiToMcu};
+use shared::messages::McuToRpi;
 
 #[embassy_executor::task]
 pub async fn uart_task(uart: usart::BufferedUart<'static>) {
@@ -44,7 +44,7 @@ async fn uart_rx_task(mut uart: usart::BufferedUartRx<'static>) {
                         "UART RX: {:?}: Failed to decode message : {=[u8]:x}",
                         e,
                         &rx_buffer[..i]
-                    )
+                    );
                 }
             }
 
