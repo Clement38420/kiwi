@@ -1,9 +1,13 @@
+use crate::tasks::uart::TX_CHANNEL;
 use embassy_stm32::adc::{Adc, AnyAdcChannel, SampleTime};
 use embassy_stm32::gpio::Output;
 use embassy_stm32::peripherals::ADC1;
 use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
 use embassy_sync::mutex::Mutex;
 use embassy_sync::watch::Watch;
+use shared::messages;
+
+const BATTERY_VOLTAGE_RATIO: f32 = 0.036; // (3.3V / 1024 * 11.2)
 
 pub static BATTERY_STATUS: Watch<ThreadModeRawMutex, BatteryStatus, 2> = Watch::new();
 
@@ -16,7 +20,7 @@ pub enum BatteryStatus {
 }
 
 impl BatteryStatus {
-    fn threshold(&self) -> StatusThresholds {
+    fn threshold(self) -> StatusThresholds {
         match self {
             BatteryStatus::High => StatusThresholds {
                 exit_up: None,
@@ -43,20 +47,20 @@ struct StatusThresholds {
     exit_up: Option<(u16, BatteryStatus)>,
 }
 
-pub fn get_battery_status(current_status: &BatteryStatus, raw_adc: u16) -> BatteryStatus {
-    if let Some((threshold, next)) = current_status.threshold().exit_down {
-        if raw_adc < threshold {
-            return next;
-        }
+pub fn get_battery_status(current_status: BatteryStatus, raw_adc: u16) -> BatteryStatus {
+    if let Some((threshold, next)) = current_status.threshold().exit_down
+        && raw_adc < threshold
+    {
+        return next;
     }
 
-    if let Some((threshold, next)) = current_status.threshold().exit_up {
-        if raw_adc > threshold {
-            return next;
-        }
+    if let Some((threshold, next)) = current_status.threshold().exit_up
+        && raw_adc > threshold
+    {
+        return next;
     }
 
-    *current_status
+    current_status
 }
 
 #[embassy_executor::task]
@@ -64,19 +68,35 @@ pub async fn battery_monitoring_task(
     adc: &'static Mutex<ThreadModeRawMutex, Adc<'static, ADC1>>,
     mut voltage_sense_pin: AnyAdcChannel<'static, ADC1>,
 ) {
-    let mut battery_status = get_battery_status(&BatteryStatus::High, 1000);
-    let battery_sender = BATTERY_STATUS.sender();
+    let mut battery_status = get_battery_status(BatteryStatus::High, 1000);
+
+    let battery_status_sender = BATTERY_STATUS.sender();
+    battery_status_sender.send(battery_status);
 
     let mut ticker = embassy_time::Ticker::every(embassy_time::Duration::from_millis(1000));
     loop {
-        battery_status = get_battery_status(
-            &battery_status,
-            adc.lock()
-                .await
-                .blocking_read(&mut voltage_sense_pin, SampleTime::CYCLES144),
-        );
+        const SAMPLES: u32 = 16;
+        let mut sum = 0u32;
+        {
+            let mut adc_locked = adc.lock().await;
+            for _ in 0..SAMPLES {
+                sum += u32::from(
+                    adc_locked.blocking_read(&mut voltage_sense_pin, SampleTime::CYCLES144),
+                );
+            }
+        }
+        let battery_raw_voltage = u16::try_from(sum / SAMPLES).unwrap_or(0);
+        let battery_voltage = f32::from(battery_raw_voltage) * BATTERY_VOLTAGE_RATIO;
 
-        battery_sender.send(battery_status);
+        let new_battery_status = get_battery_status(battery_status, battery_raw_voltage);
+        if new_battery_status != battery_status {
+            battery_status = new_battery_status;
+            battery_status_sender.send(battery_status);
+        }
+
+        TX_CHANNEL
+            .send(messages::McuToRpi::BatteryVoltage(battery_voltage))
+            .await;
 
         ticker.next().await;
     }
