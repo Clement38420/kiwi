@@ -1,60 +1,57 @@
 <script setup lang="ts">
-import { useRobotStore } from '@/stores/robot.ts'
+import type { BatteryStatus } from '@/bindings/BatteryStatus.ts'
+import type { State } from '@/types.ts'
 import { computed } from 'vue'
+import { useRobotStore } from '@/stores/robot.ts'
 import BaseProgressBar from '@/components/base/BaseProgressBar.vue'
 
-const kiwiStore = useRobotStore()
-
-interface Vital {
-  label: string
-  value: string
-  dot?: 'living-dot' | 'bg-warn' | 'bg-danger' | 'bg-ok' | 'bg-info'
-  progressBar?: {
-    color: string
-    progress: number
-  }
-}
-
-const connectionVital = computed<Vital>(() => {
-  const label = 'Robot connection'
-  switch (kiwiStore.connectionStatus) {
-    case WebSocket.CONNECTING:
-      return { label, value: 'Connecting...', dot: 'bg-warn' }
-    case WebSocket.OPEN:
-      return { label, value: 'Connected', dot: 'living-dot' }
-    case WebSocket.CLOSING:
-      return { label, value: 'Disconnecting...', dot: 'bg-warn' }
-    case WebSocket.CLOSED:
-    default:
-      return { label, value: 'Disconnected', dot: 'bg-danger' }
-  }
-})
+const robotStore = useRobotStore()
 
 const BATTERY_MIN_VOLTAGE = 17.4
 const BATTERY_MAX_VOLTAGE = 21.5
 
-const vitals = computed<Vital[]>(() => {
-  const batteryProgress = Math.max(
-    0,
-    Math.min(
-      1,
-      (kiwiStore.batteryVoltage - BATTERY_MIN_VOLTAGE) /
-        (BATTERY_MAX_VOLTAGE - BATTERY_MIN_VOLTAGE),
-    ),
-  )
+interface Vital {
+  label: string
+  value: string
+  state?: State
+  living?: boolean
+  dot?: boolean
+  gauge?: number
+}
 
-  return [
-    connectionVital.value,
-    {
-      label: 'Battery voltage',
-      value: `${kiwiStore.batteryVoltage.toFixed(2)} V`,
-      progressBar: {
-        color: 'bg-kiwi',
-        progress: batteryProgress,
-      },
-    },
-  ]
+const batteryState: Record<BatteryStatus, State> = {
+  Critical: 'crit',
+  Low: 'crit',
+  Medium: 'warn',
+  High: 'ok',
+}
+
+const clamp01 = (n: number) => Math.max(0, Math.min(1, n))
+
+const connectionVital = computed<Vital>(() => {
+  const label = 'Robot connection'
+  switch (robotStore.connectionStatus) {
+    case WebSocket.CONNECTING:
+      return { label, value: 'Connecting...', state: 'warn', dot: true }
+    case WebSocket.OPEN:
+      return { label, value: 'Connected', state: 'ok', dot: true, living: true }
+    case WebSocket.CLOSING:
+      return { label, value: 'Disconnecting...', state: 'warn', dot: true }
+    default:
+      return { label, value: 'Disconnected', state: 'crit', dot: true }
+  }
 })
+
+const batteryVital = computed<Vital>(() => ({
+  label: 'Battery voltage',
+  value: `${robotStore.batteryVoltage.toFixed(2)} V`,
+  state: batteryState[robotStore.batteryStatus],
+  gauge: clamp01(
+    (robotStore.batteryVoltage - BATTERY_MIN_VOLTAGE) / (BATTERY_MAX_VOLTAGE - BATTERY_MIN_VOLTAGE),
+  ),
+}))
+
+const vitals = computed(() => [connectionVital.value, batteryVital.value])
 </script>
 
 <template>
@@ -65,20 +62,23 @@ const vitals = computed<Vital[]>(() => {
         <div v-for="vital in vitals" :key="vital.label" class="tel-row">
           <div class="tel-header">
             <span class="tel-label">{{ vital.label }}</span>
-            <span class="tel-value">
-              <span v-if="vital.dot" :class="['dot', vital.dot]" />
+            <span class="tel-value" :data-state="!vital.dot ? vital.state : undefined">
+              <span
+                v-if="vital.dot"
+                class="status-dot"
+                :data-state="vital.state"
+                :data-living="vital.living || undefined"
+              />
               <span>{{ vital.value }}</span>
             </span>
           </div>
           <BaseProgressBar
-            v-if="vital.progressBar"
-            :color="vital.progressBar.color"
-            :progress="vital.progressBar.progress"
+            v-if="vital.gauge !== undefined"
+            :progress="vital.gauge"
+            :data-state="vital.state"
           />
         </div>
       </div>
     </div>
   </div>
 </template>
-
-<style scoped></style>

@@ -13,6 +13,15 @@ pub struct LidarPoint {
 
 pub type BatteryVoltage = f32;
 
+#[derive(Serialize, Deserialize, Debug, PartialEq, Copy, Clone)]
+#[cfg_attr(feature = "ts", derive(TS), ts(export))]
+pub enum BatteryStatus {
+    High,
+    Medium,
+    Low,
+    Critical,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum RpiToMcu {
     WheelSpeedSetpoints([f32; 3]),
@@ -21,6 +30,7 @@ pub enum RpiToMcu {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum McuToRpi {
     BatteryVoltage(BatteryVoltage),
+    BatteryStatus(BatteryStatus),
 }
 
 #[cfg(feature = "std")]
@@ -29,6 +39,7 @@ pub enum McuToRpi {
 pub enum RpiToGcs {
     LidarScan(std::sync::Arc<Vec<LidarPoint>>),
     BatteryVoltage(BatteryVoltage),
+    BatteryStatus(BatteryStatus),
 }
 
 const CRC: Crc<u16> = Crc::<u16>::new(&crc::CRC_16_MODBUS);

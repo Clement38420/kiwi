@@ -1,4 +1,5 @@
 use crate::drivers;
+use shared::messages::McuToRpi;
 
 const MCU_PORT: &str = "/dev/serial0";
 
@@ -24,8 +25,11 @@ pub(crate) async fn mcu_task(gcs_tx: tokio::sync::broadcast::Sender<shared::mess
     loop {
         match mcu.receive_message().await {
             Ok(message) => match message {
-                shared::messages::McuToRpi::BatteryVoltage(voltage) => {
+                McuToRpi::BatteryVoltage(voltage) => {
                     let _ = gcs_tx.send(shared::messages::RpiToGcs::BatteryVoltage(voltage));
+                }
+                McuToRpi::BatteryStatus(status) => {
+                    let _ = gcs_tx.send(shared::messages::RpiToGcs::BatteryStatus(status));
                 }
             },
             Err(e) => {

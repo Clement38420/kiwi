@@ -9,15 +9,26 @@ use shared::messages;
 
 const BATTERY_VOLTAGE_RATIO: f32 = 0.036; // (3.3V / 1024 * 11.2)
 
-pub static BATTERY_STATUS: Watch<ThreadModeRawMutex, BatteryStatus, 2> = Watch::new();
-
-#[derive(PartialEq, Copy, Clone)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum BatteryStatus {
     High,
     Medium,
     Low,
     Critical,
 }
+
+impl From<BatteryStatus> for messages::BatteryStatus {
+    fn from(value: BatteryStatus) -> Self {
+        match value {
+            BatteryStatus::High => messages::BatteryStatus::High,
+            BatteryStatus::Medium => messages::BatteryStatus::Medium,
+            BatteryStatus::Low => messages::BatteryStatus::Low,
+            BatteryStatus::Critical => messages::BatteryStatus::Critical,
+        }
+    }
+}
+
+pub static BATTERY_STATUS: Watch<ThreadModeRawMutex, BatteryStatus, 2> = Watch::new();
 
 impl BatteryStatus {
     fn threshold(self) -> StatusThresholds {
@@ -96,6 +107,9 @@ pub async fn battery_monitoring_task(
 
         TX_CHANNEL
             .send(messages::McuToRpi::BatteryVoltage(battery_voltage))
+            .await;
+        TX_CHANNEL
+            .send(messages::McuToRpi::BatteryStatus(battery_status.into()))
             .await;
 
         ticker.next().await;

@@ -2,6 +2,12 @@
 
 @import 'tailwindcss';
 
+@custom-variant ok (&:where([data-state="ok"], [data-state="ok"] *));
+@custom-variant info (&:where([data-state="info"], [data-state="info"] *));
+@custom-variant warn (&:where([data-state="warn"], [data-state="warn"] *));
+@custom-variant crit (&:where([data-state="crit"], [data-state="crit"] *));
+@custom-variant living (&:where([data-living], [data-living] *));
+
 @theme static {
   --color-background: light-dark(#f8fafc, #0b1220);
   --color-surface: light-dark(#ffffff, #111a2e);
@@ -17,7 +23,7 @@
 
   --color-spark: #fbbf24;
 
-  --color-ok: light-dark(#10b981, #34d399);
+  --color-ok: light-dark(#16a34a, #4ade80);
   --color-info: light-dark(#0ea5e9, #38bdf8);
   --color-warn: light-dark(#ffc505, #ffd041);
   --color-crit: light-dark(#dc2626, #ef4444);
@@ -47,11 +53,6 @@
   --color-graphite-900: #0f172a;
   --color-graphite-950: #0b1220;
 
-  --color-success: #10b981;
-  --color-info: #0ea5e9;
-  --color-warning: #f59e0b;
-  --color-danger: #ef4444;
-
   --font-display: 'Space Grotesk', 'Inter', system-ui, sans-serif;
   --font-body: 'Inter', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
@@ -73,7 +74,7 @@
 
   @keyframes spark-pulse {
     0% {
-      box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-spark) 45%, transparent);
+      box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 45%, transparent);
     }
     50% {
       box-shadow: 0 0 0 6px transparent;
@@ -214,12 +215,8 @@
     @apply bg-surface shadow-panel;
   }
 
-  .dot,
-  .living-dot {
-    @apply inline-block rounded-full size-[0.5em] shrink-0;
-  }
-  .living-dot {
-    @apply bg-spark! animate-spark-pulse;
+  .status-dot {
+    @apply inline-block rounded-full size-[0.5em] shrink-0 ok:text-ok info:text-info warn:text-warn crit:text-crit bg-current living:animate-spark-pulse;
   }
 
   .tel-list {
@@ -235,13 +232,13 @@
     @apply text-ink-muted;
   }
   .tel-value {
-    @apply flex items-center gap-2 font-medium;
+    @apply flex items-center gap-2 font-medium ok:text-ok info:text-info warn:text-warn crit:text-crit;
   }
 
   .progress-bar {
     @apply relative w-full h-[0.5em] bg-graphite-200 dark:bg-graphite-700 rounded-full overflow-hidden;
   }
   .progress-fill {
-    @apply absolute top-0 left-0 h-full w-full origin-left;
+    @apply absolute top-0 left-0 h-full w-full origin-left ok:text-ok info:text-info warn:text-warn crit:text-crit bg-current transition-transform ease-kiwi;
   }
 }

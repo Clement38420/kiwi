@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 const props = defineProps<{
-  color: string
   progress: number
+  color?: string
 }>()
 </script>
 

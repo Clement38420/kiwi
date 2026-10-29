@@ -3,6 +3,7 @@ import type { RpiToGcs } from '@/bindings/RpiToGcs.ts'
 import { decode } from '@msgpack/msgpack'
 import { ref, shallowRef } from 'vue'
 import type { LidarPoint } from '@/bindings/LidarPoint.ts'
+import type { BatteryStatus } from '@/bindings/BatteryStatus.ts'
 
 export const useRobotStore = defineStore('robot', () => {
   const websocket = new WebSocket(`/ws`)
@@ -11,6 +12,7 @@ export const useRobotStore = defineStore('robot', () => {
   const connectionStatus = ref(websocket.readyState)
   const lidarScan = shallowRef<LidarPoint[]>([])
   const batteryVoltage = ref<number>(0)
+  const batteryStatus = ref<BatteryStatus>('High')
 
   websocket.onopen = () => {
     connectionStatus.value = websocket.readyState
@@ -31,26 +33,21 @@ export const useRobotStore = defineStore('robot', () => {
 
   function dispatchMessage(message: RpiToGcs) {
     if ('LidarScan' in message) {
-      lidarScanHandler(message.LidarScan)
+      lidarScan.value = message.LidarScan
     } else if ('BatteryVoltage' in message) {
-      batteryVoltageHandler(message.BatteryVoltage)
+      batteryVoltage.value = message.BatteryVoltage
+    } else if ('BatteryStatus' in message) {
+      batteryStatus.value = message.BatteryStatus
     } else {
       const _exhaustiveCheck: never = message
       return _exhaustiveCheck
     }
   }
 
-  function lidarScanHandler(dataPoints: LidarPoint[]) {
-    lidarScan.value = dataPoints
-  }
-
-  function batteryVoltageHandler(voltage: number) {
-    batteryVoltage.value = voltage
-  }
-
   return {
     lidarScan,
     batteryVoltage,
     connectionStatus,
+    batteryStatus,
   }
 })
