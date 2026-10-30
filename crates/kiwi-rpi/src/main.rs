@@ -3,8 +3,8 @@ pub mod tasks;
 
 use shared::messages::LidarPoint;
 use std::sync::Arc;
+use tokio::signal::unix::{SignalKind, signal};
 use tokio::sync::watch;
-use tokio::time;
 
 #[tokio::main]
 async fn main() {
@@ -15,7 +15,9 @@ async fn main() {
     tokio::spawn(tasks::gcs::gcs_task(gcs_tx.clone()));
     tokio::spawn(tasks::mcu::mcu_task(gcs_tx.clone()));
 
-    loop {
-        time::sleep(time::Duration::from_secs(1)).await;
+    let mut sigterm = signal(SignalKind::terminate()).unwrap();
+    tokio::select! {
+        _ = sigterm.recv() => {},
+        _ = tokio::signal::ctrl_c() => {},
     }
 }
