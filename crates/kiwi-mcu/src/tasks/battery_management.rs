@@ -8,7 +8,7 @@ use embassy_sync::mutex::Mutex;
 use shared::messages;
 use shared::messages::BatteryStatus;
 
-const BATTERY_VOLTAGE_RATIO: f32 = 0.036; // (3.3V / 1024 * 11.2)
+const BATTERY_VOLTAGE_RATIO: f32 = 0.0365; // (3.3V / 1024 * 11.3)
 
 struct StatusThresholds {
     exit_down: Option<(u16, BatteryStatus)>,
@@ -62,7 +62,7 @@ pub async fn battery_monitoring_task(
 
     let mut ticker = embassy_time::Ticker::every(embassy_time::Duration::from_millis(1000));
     loop {
-        const SAMPLES: u32 = 16;
+        const SAMPLES: u32 = 32;
         let mut sum = 0u32;
         {
             let mut adc_locked = adc.lock().await;
