@@ -1,25 +1,18 @@
 use shared::messages::{McuToRpi, RpiToMcu};
-use std::fmt::Display;
+use thiserror::Error;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio_serial::SerialPortBuilderExt;
 
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum McuError {
+    #[error("IO error: {0}")]
     IO(std::io::Error),
+    #[error("Serial port error: {0}")]
     Serial(tokio_serial::Error),
+    #[error("Invalid data received")]
     InvalidDataReceived,
+    #[error("Failed to encode message")]
     EncodingError,
-}
-
-impl Display for McuError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            McuError::IO(e) => write!(f, "IO error: {e}"),
-            McuError::Serial(e) => write!(f, "Serial port error: {e}"),
-            McuError::InvalidDataReceived => write!(f, "Invalid data received from MCU"),
-            McuError::EncodingError => write!(f, "Failed to encode message for MCU"),
-        }
-    }
 }
 
 impl From<std::io::Error> for McuError {
@@ -33,8 +26,6 @@ impl From<tokio_serial::Error> for McuError {
         McuError::Serial(err)
     }
 }
-
-impl std::error::Error for McuError {}
 
 type McuResult<T> = Result<T, McuError>;
 

@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use thiserror::Error;
 use tokio::io::{AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio_serial::{ClearBuffer, SerialPort, SerialPortBuilderExt};
 
@@ -38,21 +38,14 @@ struct ScanPacket {
     sample_data: Vec<DataPoint>,
 }
 
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum LidarError {
+    #[error("Corrupt packet received")]
     CorruptPacket,
+    #[error("IO error: {0}")]
     IO(std::io::Error),
+    #[error("Serial port error: {0}")]
     Serial(tokio_serial::Error),
-}
-
-impl Display for LidarError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            LidarError::CorruptPacket => write!(f, "Corrupt packet received."),
-            LidarError::IO(e) => write!(f, "IO error: {e}"),
-            LidarError::Serial(e) => write!(f, "Serial port error: {e}"),
-        }
-    }
 }
 
 impl From<std::io::Error> for LidarError {
@@ -66,8 +59,6 @@ impl From<tokio_serial::Error> for LidarError {
         LidarError::Serial(err)
     }
 }
-
-impl std::error::Error for LidarError {}
 
 pub type LidarResult<T> = Result<T, LidarError>;
 

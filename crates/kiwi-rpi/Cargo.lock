@@ -533,6 +533,7 @@ dependencies = [
  "rmp-serde",
  "rust-embed",
  "shared",
+ "thiserror",
  "tokio",
  "tokio-serial",
 ]
