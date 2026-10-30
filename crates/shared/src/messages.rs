@@ -52,6 +52,10 @@ pub enum DecodeError {
     DeserializeError,
 }
 
+/// Decodes a message from a buffer which contains exactly de packet without the trailing 0x00, returning the decoded message.
+///
+/// # Errors
+/// Returns a `DecodeError` if the message is invalid or cannot be decoded.
 pub fn decode<'a, T: Deserialize<'a>>(buffer: &'a mut [u8]) -> Result<T, DecodeError> {
     let decoded_len =
         cobs::decode_in_place(&mut buffer[..]).map_err(|_| DecodeError::CobsDecodeError)?;
@@ -84,6 +88,10 @@ pub enum EncodeError<T> {
 use core::cmp::min;
 
 #[cfg(not(feature = "std"))]
+/// Encodes a message into a buffer, returning the number of bytes written to the buffer.
+///
+/// # Errors
+/// Returns an `EncodeError` if the message is too large to fit in the buffer or if serialization fails.
 pub fn encode<T: Serialize>(
     message: &T,
     buffer: &mut [u8],
@@ -109,6 +117,10 @@ pub fn encode<T: Serialize>(
 }
 
 #[cfg(feature = "std")]
+/// Encodes a message into a Vec<u8>, returning the encoded message.
+///
+/// # Errors
+/// Returns an `EncodeError` if serialization fails.
 pub fn encode<T: Serialize>(message: &T) -> Result<Vec<u8>, EncodeError<postcard::Error>> {
     let mut payload = postcard::to_stdvec(message).map_err(EncodeError::SerializeError)?;
     let crc = CRC.checksum(&payload);
