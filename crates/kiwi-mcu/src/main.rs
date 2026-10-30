@@ -2,6 +2,7 @@
 #![no_main]
 
 mod board;
+pub mod channels;
 mod drivers;
 mod tasks;
 

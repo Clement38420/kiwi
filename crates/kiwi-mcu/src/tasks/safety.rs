@@ -1,9 +1,10 @@
-use super::battery_management::{BATTERY_STATUS, BatteryStatus};
+use crate::channels;
 use defmt::error;
 use embassy_futures::select::select_array;
 use embassy_stm32::gpio::Output;
 use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
 use embassy_sync::watch::Receiver;
+use shared::messages::BatteryStatus;
 
 pub enum SafetyReason {
     BatteryCriticalVoltage,
@@ -21,10 +22,7 @@ async fn battery_safety_check(
 
 #[embassy_executor::task]
 pub async fn safety_task(mut pwr_cmd: Output<'static>) {
-    let mut receiver = defmt::expect!(
-        BATTERY_STATUS.receiver(),
-        "SAFETY TASK: No more battery status receiver available."
-    );
+    let mut receiver = channels::subscribe_battery_status();
 
     loop {
         let check_functions = [battery_safety_check(&mut receiver)];

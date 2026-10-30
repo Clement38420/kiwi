@@ -1,13 +1,10 @@
 use crate::board::{UART1_RX_BUFFER_SIZE, UART1_TX_BUFFER_SIZE};
-use crate::tasks::communication::MESSAGE_CHANNEL;
+use crate::channels::{UART_RX, UART_TX};
 use defmt::error;
 use embassy_futures::join::join;
 use embassy_stm32::usart;
-use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
-use embassy_sync::channel;
 use embedded_io_async::{Read, Write};
 use shared::messages;
-use shared::messages::McuToRpi;
 
 #[embassy_executor::task]
 pub async fn uart_task(uart: usart::BufferedUart<'static>) {
@@ -32,7 +29,7 @@ async fn uart_rx_task(mut uart: usart::BufferedUartRx<'static>) {
         if b == 0x00 {
             match messages::decode(&mut rx_buffer[..i]) {
                 Ok(message) => {
-                    if let Err(e) = MESSAGE_CHANNEL.try_send(message) {
+                    if let Err(e) = UART_RX.try_send(message) {
                         error!(
                             "UART RX: Failed to send message to channel: {:?}",
                             defmt::Debug2Format(&e)
@@ -56,11 +53,9 @@ async fn uart_rx_task(mut uart: usart::BufferedUartRx<'static>) {
     }
 }
 
-pub static TX_CHANNEL: channel::Channel<ThreadModeRawMutex, McuToRpi, 4> = channel::Channel::new();
-
 async fn uart_tx_task(mut uart: usart::BufferedUartTx<'static>) {
     loop {
-        let message = TX_CHANNEL.receive().await;
+        let message = UART_TX.receive().await;
         let mut computation_buffer = [0u8; UART1_TX_BUFFER_SIZE];
         let mut tx_buffer = [0u8; UART1_TX_BUFFER_SIZE];
 

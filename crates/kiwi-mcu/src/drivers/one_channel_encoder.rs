@@ -126,7 +126,7 @@ impl<T: GeneralInstance32bit4Channel> Timer<T> {
         // This consumes the pin, but without dropping it. Forget it because the Encoder does not need it.
         core::mem::forget(_pin);
 
-        Encoder::new(&self, &self.encoder_states[channel as usize], max_period)
+        Encoder::new(self, &self.encoder_states[channel as usize], max_period)
     }
 
     pub fn on_interrupt(&self) {

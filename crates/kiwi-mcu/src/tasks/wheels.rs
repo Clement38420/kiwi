@@ -1,9 +1,8 @@
 use crate::board;
 use crate::board::{WheelEncoders, WheelMotors};
+use crate::channels::WHEEL_SPEED_SETPOINTS;
 use crate::drivers::blm3650;
 use core::array;
-use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
-use embassy_sync::signal::Signal;
 use embassy_time::Duration;
 use shared::pid::PIDController;
 
@@ -16,11 +15,7 @@ const FF_THRESHOLD: f32 = 2.0; // rad/s
 const SPEED_FILTER_WINDOW: usize = 6;
 const SPEED_ZERO_CROSSING_THRESHOLD: f32 = 3.0;
 const WHEELS_CONTROL_TASK_DT: Duration = Duration::from_millis(1);
-
 pub const SETPOINTS_TIMEOUT: Duration = Duration::from_millis(1000);
-/// A signal that holds the desired wheel speed setpoints. This signal will be considered stale if it is not updated for SETPOINTS_TIMEOUT.
-/// The wheels control task will stop the wheels if the signal is stale.
-pub(crate) static WHEEL_SPEED_SETPOINTS: Signal<ThreadModeRawMutex, [f32; 3]> = Signal::new();
 
 fn get_wheel_speed_setpoints() -> Option<[f32; 3]> {
     WHEEL_SPEED_SETPOINTS.try_take()
