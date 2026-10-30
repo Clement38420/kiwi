@@ -1,9 +1,13 @@
 use crate::drivers;
-use shared::messages::McuToRpi;
+use shared::messages::{McuToRpi, RpiToGcs};
+use tokio::sync::broadcast::error::RecvError;
 
 const MCU_PORT: &str = "/dev/serial0";
 
-pub(crate) async fn mcu_task(gcs_tx: tokio::sync::broadcast::Sender<shared::messages::RpiToGcs>) {
+pub(crate) async fn mcu_task(
+    sending_queue: tokio::sync::broadcast::Sender<shared::messages::RpiToMcu>,
+    gcs_tx: tokio::sync::broadcast::Sender<shared::messages::RpiToGcs>,
+) {
     let mut mcu = loop {
         let mcu_port_builder = tokio_serial::new(MCU_PORT, 115_200)
             .parity(tokio_serial::Parity::None)
@@ -22,18 +26,39 @@ pub(crate) async fn mcu_task(gcs_tx: tokio::sync::broadcast::Sender<shared::mess
         }
     };
 
+    let mut sending_queue = sending_queue.subscribe();
+
     loop {
-        match mcu.receive_message().await {
-            Ok(message) => match message {
-                McuToRpi::BatteryVoltage(voltage) => {
-                    let _ = gcs_tx.send(shared::messages::RpiToGcs::BatteryVoltage(voltage));
-                }
-                McuToRpi::BatteryState(state) => {
-                    let _ = gcs_tx.send(shared::messages::RpiToGcs::BatteryState(state));
+        tokio::select! {
+            message = mcu.receive_message() => match message {
+                Ok(message) => {
+                    match &message {
+                        McuToRpi::BatteryVoltage(_)
+                        | McuToRpi::BatteryState(_)
+                        | McuToRpi::ArmState(_) => {}
+                    }
+
+                    // If the message can be converted to RpiToGcs, forward it
+                    if let Ok(message) = RpiToGcs::try_from(message) {
+                        let _ = gcs_tx.send(message);
+                    }
+                },
+                Err(e) => {
+                    eprintln!("MCU RX: Failed to receive message from MCU: {e:?}");
                 }
             },
-            Err(e) => {
-                eprintln!("MCU RX: Failed to receive message from MCU: {e:?}");
+            message = sending_queue.recv() => match message {
+                Ok(message) => {
+                    if let Err(e) = mcu.send_message(&message).await {
+                        eprintln!("MCU TX: Failed to send message to MCU: {e:?}");
+                    }
+                },
+                Err(RecvError::Lagged(skipped)) => {
+                    eprintln!("MCU TX: sending lagged, skipped {skipped} messages");
+                }
+                Err(RecvError::Closed) => {
+                    break;
+                }
             }
         }
     }

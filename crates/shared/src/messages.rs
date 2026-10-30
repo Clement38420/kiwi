@@ -22,15 +22,25 @@ pub enum BatteryState {
     Critical,
 }
 
+#[derive(Serialize, Deserialize, Copy, Clone, PartialEq, Debug)]
+#[cfg_attr(feature = "ts", derive(TS), ts(export))]
+pub enum ArmState {
+    Armed,
+    Disarmed,
+    CannotArm,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum RpiToMcu {
     WheelSpeedSetpoints([f32; 3]),
+    Arm(bool),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum McuToRpi {
     BatteryVoltage(BatteryVoltage),
     BatteryState(BatteryState),
+    ArmState(ArmState),
 }
 
 #[cfg(feature = "std")]
@@ -40,6 +50,38 @@ pub enum RpiToGcs {
     LidarScan(std::sync::Arc<Vec<LidarPoint>>),
     BatteryVoltage(BatteryVoltage),
     BatteryState(BatteryState),
+    ArmState(ArmState),
+}
+
+#[cfg(feature = "std")]
+impl TryFrom<McuToRpi> for RpiToGcs {
+    type Error = ();
+
+    fn try_from(value: McuToRpi) -> Result<Self, Self::Error> {
+        match value {
+            McuToRpi::BatteryVoltage(v) => Ok(RpiToGcs::BatteryVoltage(v)),
+            McuToRpi::BatteryState(v) => Ok(RpiToGcs::BatteryState(v)),
+            McuToRpi::ArmState(v) => Ok(RpiToGcs::ArmState(v)),
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(TS), ts(export))]
+pub enum GcsToRpi {
+    Arm(bool),
+}
+
+#[cfg(feature = "std")]
+impl TryFrom<GcsToRpi> for RpiToMcu {
+    type Error = ();
+
+    fn try_from(value: GcsToRpi) -> Result<Self, Self::Error> {
+        match value {
+            GcsToRpi::Arm(v) => Ok(RpiToMcu::Arm(v)),
+        }
+    }
 }
 
 const CRC: Crc<u16> = Crc::<u16>::new(&crc::CRC_16_MODBUS);

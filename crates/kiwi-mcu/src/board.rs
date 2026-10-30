@@ -161,8 +161,8 @@ impl Board {
 
         tim2.start();
 
-        // Power command is ON by default
-        let pwr_cmd = Output::new(p.PG8, Level::High, Speed::Low);
+        // Power command is OFF by default
+        let pwr_cmd = Output::new(p.PG8, Level::Low, Speed::Low);
 
         let adc1 = ADC1.get_or_init(|| {
             Mutex::new(adc::Adc::new_with_config(

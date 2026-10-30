@@ -35,7 +35,7 @@ fn threshold(state: BatteryState) -> StateThresholds {
     }
 }
 
-pub fn get_battery_state(current_state: BatteryState, raw_adc: u16) -> BatteryState {
+fn get_battery_state(current_state: BatteryState, raw_adc: u16) -> BatteryState {
     if let Some((threshold, next)) = threshold(current_state).exit_down
         && raw_adc < threshold
     {

@@ -9,23 +9,24 @@ use axum::{
     routing::any,
 };
 use rust_embed::RustEmbed;
-use shared::messages::RpiToGcs;
+use shared::messages::{GcsToRpi, RpiToGcs, RpiToMcu};
 use tokio::sync::broadcast;
 
 const GCS_PORT: &str = "8080";
 
 type WsSendingQueueTx = broadcast::Sender<RpiToGcs>;
 type WsSendingQueueRx = broadcast::Receiver<RpiToGcs>;
+type McuSendingQueueTx = broadcast::Sender<RpiToMcu>;
 
 #[derive(RustEmbed)]
 #[folder = "../../gcs/dist/"]
 struct GcsAssets;
 
-pub async fn gcs_task(ws_sending_queue: WsSendingQueueTx) {
+pub async fn gcs_task(ws_sending_queue: WsSendingQueueTx, mcu_sending_queue: McuSendingQueueTx) {
     let app = Router::new()
         .route("/ws", any(ws_handler))
         .fallback(static_handler)
-        .with_state(ws_sending_queue);
+        .with_state((ws_sending_queue, mcu_sending_queue));
 
     let listener = loop {
         if let Ok(listener) = tokio::net::TcpListener::bind(format!("0.0.0.0:{GCS_PORT}")).await {
@@ -43,13 +44,17 @@ pub async fn gcs_task(ws_sending_queue: WsSendingQueueTx) {
 
 async fn ws_handler(
     ws: WebSocketUpgrade,
-    State(sending_queue_tx): State<WsSendingQueueTx>,
+    State((sending_queue_tx, mcu_sending_queue)): State<(WsSendingQueueTx, McuSendingQueueTx)>,
 ) -> impl IntoResponse {
     let sending_queue_rx = sending_queue_tx.subscribe();
-    ws.on_upgrade(move |socket| handle_socket(socket, sending_queue_rx))
+    ws.on_upgrade(move |socket| handle_socket(socket, sending_queue_rx, mcu_sending_queue))
 }
 
-async fn handle_socket(mut socket: WebSocket, mut sending_queue: WsSendingQueueRx) {
+async fn handle_socket(
+    mut socket: WebSocket,
+    mut sending_queue: WsSendingQueueRx,
+    mcu_sending_queue: McuSendingQueueTx,
+) {
     println!("GCS: Client connected via WebSocket");
     loop {
         tokio::select! {
@@ -62,9 +67,30 @@ async fn handle_socket(mut socket: WebSocket, mut sending_queue: WsSendingQueueR
                     }
                 }
                 Err(broadcast::error::RecvError::Lagged(skipped)) => {
-                    eprintln!("GCS: WebSocket client lagged, skipped {skipped} messages");
+                    eprintln!("GCS TX: sending lagged, skipped {skipped} messages");
                 }
                 Err(broadcast::error::RecvError::Closed) => break,
+            },
+            message = socket.recv() => match message {
+                Some(Ok(WsMessage::Binary(bytes))) => {
+                    match rmp_serde::from_slice::<GcsToRpi>(&bytes) {
+                        Ok(message) => {
+                            match &message {
+                                GcsToRpi::Arm(_) => {}
+                            }
+
+                            // If the message can be converted to RpiToMcu, forward it
+                            if let Ok(message) = RpiToMcu::try_from(message) {
+                                let _ = mcu_sending_queue.send(message);
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("GCS RX: Failed to decode message: {e}");
+                        }
+                    }
+                }
+                Some(Ok(WsMessage::Close(_)) | Err(_)) | None => break,
+                Some(Ok(_)) => {} // Ignore Text, Ping, Pong (automatically handled by Axum)
             },
         }
     }
