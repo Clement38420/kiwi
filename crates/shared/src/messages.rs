@@ -15,7 +15,7 @@ pub type BatteryVoltage = f32;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Copy, Clone)]
 #[cfg_attr(feature = "ts", derive(TS), ts(export))]
-pub enum BatteryStatus {
+pub enum BatteryState {
     High,
     Medium,
     Low,
@@ -30,7 +30,7 @@ pub enum RpiToMcu {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum McuToRpi {
     BatteryVoltage(BatteryVoltage),
-    BatteryStatus(BatteryStatus),
+    BatteryState(BatteryState),
 }
 
 #[cfg(feature = "std")]
@@ -39,7 +39,7 @@ pub enum McuToRpi {
 pub enum RpiToGcs {
     LidarScan(std::sync::Arc<Vec<LidarPoint>>),
     BatteryVoltage(BatteryVoltage),
-    BatteryStatus(BatteryStatus),
+    BatteryState(BatteryState),
 }
 
 const CRC: Crc<u16> = Crc::<u16>::new(&crc::CRC_16_MODBUS);

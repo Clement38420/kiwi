@@ -28,8 +28,8 @@ pub(crate) async fn mcu_task(gcs_tx: tokio::sync::broadcast::Sender<shared::mess
                 McuToRpi::BatteryVoltage(voltage) => {
                     let _ = gcs_tx.send(shared::messages::RpiToGcs::BatteryVoltage(voltage));
                 }
-                McuToRpi::BatteryStatus(status) => {
-                    let _ = gcs_tx.send(shared::messages::RpiToGcs::BatteryStatus(status));
+                McuToRpi::BatteryState(state) => {
+                    let _ = gcs_tx.send(shared::messages::RpiToGcs::BatteryState(state));
                 }
             },
             Err(e) => {

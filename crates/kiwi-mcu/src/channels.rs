@@ -3,27 +3,27 @@ use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
 use embassy_sync::signal::Signal;
 use embassy_sync::watch::Watch;
 use embassy_sync::{channel, watch};
-use shared::messages::BatteryStatus;
+use shared::messages::BatteryState;
 use shared::messages::{McuToRpi, RpiToMcu};
 
-const BATTERY_STATUS_RECEIVERS: usize = 2;
-static BATTERY_STATUS: Watch<ThreadModeRawMutex, BatteryStatus, BATTERY_STATUS_RECEIVERS> =
+const BATTERY_STATE_RECEIVERS: usize = 2;
+static BATTERY_STATE: Watch<ThreadModeRawMutex, BatteryState, BATTERY_STATE_RECEIVERS> =
     Watch::new();
-pub fn update_battery_status(new_status: BatteryStatus) {
-    BATTERY_STATUS.sender().send_if_modified(|current| {
-        if *current != Some(new_status) {
-            *current = Some(new_status);
+pub fn update_battery_state(new_state: BatteryState) {
+    BATTERY_STATE.sender().send_if_modified(|current| {
+        if *current != Some(new_state) {
+            *current = Some(new_state);
             true
         } else {
             false
         }
     });
 }
-pub fn subscribe_battery_status()
--> watch::Receiver<'static, ThreadModeRawMutex, BatteryStatus, BATTERY_STATUS_RECEIVERS> {
+pub fn subscribe_battery_state()
+-> watch::Receiver<'static, ThreadModeRawMutex, BatteryState, BATTERY_STATE_RECEIVERS> {
     defmt::expect!(
-        BATTERY_STATUS.receiver(),
-        "CHANNELS: No more battery status receiver available."
+        BATTERY_STATE.receiver(),
+        "CHANNELS: No more battery state receiver available."
     )
 }
 

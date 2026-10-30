@@ -4,17 +4,17 @@ use embassy_futures::select::select_array;
 use embassy_stm32::gpio::Output;
 use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
 use embassy_sync::watch::Receiver;
-use shared::messages::BatteryStatus;
+use shared::messages::BatteryState;
 
 pub enum SafetyReason {
     BatteryCriticalVoltage,
 }
 
 async fn battery_safety_check(
-    receiver: &mut Receiver<'static, ThreadModeRawMutex, BatteryStatus, 2>,
+    receiver: &mut Receiver<'static, ThreadModeRawMutex, BatteryState, 2>,
 ) -> SafetyReason {
     loop {
-        if receiver.changed().await == BatteryStatus::Critical {
+        if receiver.changed().await == BatteryState::Critical {
             return SafetyReason::BatteryCriticalVoltage;
         }
     }
@@ -22,7 +22,7 @@ async fn battery_safety_check(
 
 #[embassy_executor::task]
 pub async fn safety_task(mut pwr_cmd: Output<'static>) {
-    let mut receiver = channels::subscribe_battery_status();
+    let mut receiver = channels::subscribe_battery_state();
 
     loop {
         let check_functions = [battery_safety_check(&mut receiver)];

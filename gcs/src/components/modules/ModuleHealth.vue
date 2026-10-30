@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { BatteryStatus } from '@/bindings/BatteryStatus.ts'
+import type { BatteryState } from '@/bindings/BatteryState.ts'
 import type { State } from '@/types.ts'
 import { computed } from 'vue'
 import { useRobotStore } from '@/stores/robot.ts'
@@ -19,7 +19,7 @@ interface Vital {
   gauge?: number
 }
 
-const batteryState: Record<BatteryStatus, State> = {
+const batteryState: Record<BatteryState, State> = {
   Critical: 'crit',
   Low: 'crit',
   Medium: 'warn',
@@ -30,7 +30,7 @@ const clamp01 = (n: number) => Math.max(0, Math.min(1, n))
 
 const connectionVital = computed<Vital>(() => {
   const label = 'Robot connection'
-  switch (robotStore.connectionStatus) {
+  switch (robotStore.connectionState) {
     case WebSocket.CONNECTING:
       return { label, value: 'Connecting...', state: 'warn', dot: true }
     case WebSocket.OPEN:
@@ -45,7 +45,7 @@ const connectionVital = computed<Vital>(() => {
 const batteryVital = computed<Vital>(() => ({
   label: 'Battery voltage',
   value: `${robotStore.batteryVoltage.toFixed(2)} V`,
-  state: batteryState[robotStore.batteryStatus],
+  state: batteryState[robotStore.batteryState],
   gauge: clamp01(
     (robotStore.batteryVoltage - BATTERY_MIN_VOLTAGE) / (BATTERY_MAX_VOLTAGE - BATTERY_MIN_VOLTAGE),
   ),
@@ -65,7 +65,7 @@ const vitals = computed(() => [connectionVital.value, batteryVital.value])
             <span class="tel-value" :data-state="!vital.dot ? vital.state : undefined">
               <span
                 v-if="vital.dot"
-                class="status-dot"
+                class="state-dot"
                 :data-state="vital.state"
                 :data-living="vital.living || undefined"
               />

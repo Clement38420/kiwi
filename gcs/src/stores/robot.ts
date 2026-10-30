@@ -3,27 +3,27 @@ import type { RpiToGcs } from '@/bindings/RpiToGcs.ts'
 import { decode } from '@msgpack/msgpack'
 import { ref, shallowRef } from 'vue'
 import type { LidarPoint } from '@/bindings/LidarPoint.ts'
-import type { BatteryStatus } from '@/bindings/BatteryStatus.ts'
+import type { BatteryState } from '@/bindings/BatteryState.ts'
 
 export const useRobotStore = defineStore('robot', () => {
   const websocket = new WebSocket(`/ws`)
   websocket.binaryType = 'arraybuffer'
 
-  const connectionStatus = ref(websocket.readyState)
+  const connectionState = ref(websocket.readyState)
   const lidarScan = shallowRef<LidarPoint[]>([])
   const batteryVoltage = ref<number>(0)
-  const batteryStatus = ref<BatteryStatus>('High')
+  const batteryState = ref<BatteryState>('High')
 
   websocket.onopen = () => {
-    connectionStatus.value = websocket.readyState
+    connectionState.value = websocket.readyState
   }
 
   websocket.onclose = () => {
-    connectionStatus.value = websocket.readyState
+    connectionState.value = websocket.readyState
   }
 
   websocket.onerror = () => {
-    connectionStatus.value = websocket.readyState
+    connectionState.value = websocket.readyState
   }
 
   websocket.onmessage = (event) => {
@@ -36,8 +36,8 @@ export const useRobotStore = defineStore('robot', () => {
       lidarScan.value = message.LidarScan
     } else if ('BatteryVoltage' in message) {
       batteryVoltage.value = message.BatteryVoltage
-    } else if ('BatteryStatus' in message) {
-      batteryStatus.value = message.BatteryStatus
+    } else if ('BatteryState' in message) {
+      batteryState.value = message.BatteryState
     } else {
       const _exhaustiveCheck: never = message
       return _exhaustiveCheck
@@ -47,7 +47,7 @@ export const useRobotStore = defineStore('robot', () => {
   return {
     lidarScan,
     batteryVoltage,
-    connectionStatus,
-    batteryStatus,
+    connectionState,
+    batteryState,
   }
 })
