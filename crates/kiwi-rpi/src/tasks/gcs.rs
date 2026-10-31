@@ -76,7 +76,8 @@ async fn handle_socket(
                     match rmp_serde::from_slice::<GcsToRpi>(&bytes) {
                         Ok(message) => {
                             match &message {
-                                GcsToRpi::Arm(_) => {}
+                                GcsToRpi::Arm(_)
+                                | GcsToRpi::GetStateReq(_) => {}
                             }
 
                             // If the message can be converted to RpiToMcu, forward it

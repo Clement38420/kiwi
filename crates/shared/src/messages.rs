@@ -11,11 +11,9 @@ pub struct LidarPoint {
     pub distance: f32,
 }
 
-pub type BatteryVoltage = f32;
-
 #[derive(Serialize, Deserialize, Debug, PartialEq, Copy, Clone)]
 #[cfg_attr(feature = "ts", derive(TS), ts(export))]
-pub enum BatteryState {
+pub enum BatteryLevel {
     High,
     Medium,
     Low,
@@ -31,16 +29,19 @@ pub enum ArmState {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum RpiToMcu {
-    WheelSpeedSetpoints([f32; 3]),
-    Arm(bool),
+#[cfg_attr(feature = "ts", derive(TS), ts(export))]
+pub struct RobotState {
+    pub battery_voltage: f32,
+    pub battery_level: BatteryLevel,
+    pub arm: ArmState,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum McuToRpi {
-    BatteryVoltage(BatteryVoltage),
-    BatteryState(BatteryState),
+    BatteryVoltage(f32),
+    BatteryLevel(BatteryLevel),
     ArmState(ArmState),
+    GetStateRes(RpcResponse<RobotState>),
 }
 
 #[cfg(feature = "std")]
@@ -48,9 +49,10 @@ pub enum McuToRpi {
 #[cfg_attr(feature = "ts", derive(TS), ts(export))]
 pub enum RpiToGcs {
     LidarScan(std::sync::Arc<Vec<LidarPoint>>),
-    BatteryVoltage(BatteryVoltage),
-    BatteryState(BatteryState),
+    BatteryVoltage(f32),
+    BatteryLevel(BatteryLevel),
     ArmState(ArmState),
+    GetStateRes(RpcResponse<RobotState>),
 }
 
 #[cfg(feature = "std")]
@@ -60,8 +62,9 @@ impl TryFrom<McuToRpi> for RpiToGcs {
     fn try_from(value: McuToRpi) -> Result<Self, Self::Error> {
         match value {
             McuToRpi::BatteryVoltage(v) => Ok(RpiToGcs::BatteryVoltage(v)),
-            McuToRpi::BatteryState(v) => Ok(RpiToGcs::BatteryState(v)),
+            McuToRpi::BatteryLevel(v) => Ok(RpiToGcs::BatteryLevel(v)),
             McuToRpi::ArmState(v) => Ok(RpiToGcs::ArmState(v)),
+            McuToRpi::GetStateRes(v) => Ok(RpiToGcs::GetStateRes(v)),
         }
     }
 }
@@ -71,6 +74,7 @@ impl TryFrom<McuToRpi> for RpiToGcs {
 #[cfg_attr(feature = "ts", derive(TS), ts(export))]
 pub enum GcsToRpi {
     Arm(bool),
+    GetStateReq(RpcRequest<()>),
 }
 
 #[cfg(feature = "std")]
@@ -80,8 +84,16 @@ impl TryFrom<GcsToRpi> for RpiToMcu {
     fn try_from(value: GcsToRpi) -> Result<Self, Self::Error> {
         match value {
             GcsToRpi::Arm(v) => Ok(RpiToMcu::Arm(v)),
+            GcsToRpi::GetStateReq(v) => Ok(RpiToMcu::GetStateReq(v)),
         }
     }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum RpiToMcu {
+    WheelSpeedSetpoints([f32; 3]),
+    Arm(bool),
+    GetStateReq(RpcRequest<()>),
 }
 
 const CRC: Crc<u16> = Crc::<u16>::new(&crc::CRC_16_MODBUS);
@@ -126,6 +138,7 @@ pub enum EncodeError<T> {
     MessageTooLarge,
 }
 
+use crate::rpc::{RpcRequest, RpcResponse};
 #[cfg(not(feature = "std"))]
 use core::cmp::min;
 

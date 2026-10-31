@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { BatteryState } from '@/bindings/BatteryState.ts'
-import type { State } from '@/types.ts'
+import type { BatteryLevel } from '@/bindings/BatteryLevel.ts'
+import type { State } from '@/utils/types.ts'
 import { computed } from 'vue'
 import { useRobotStore } from '@/stores/robot.ts'
 import BaseProgressBar from '@/components/base/BaseProgressBar.vue'
@@ -19,7 +19,7 @@ interface Vital {
   gauge?: number
 }
 
-const batteryState: Record<BatteryState, State> = {
+const batteryState: Record<BatteryLevel, State> = {
   Critical: 'crit',
   Low: 'crit',
   Medium: 'warn',
@@ -44,10 +44,11 @@ const connectionVital = computed<Vital>(() => {
 
 const batteryVital = computed<Vital>(() => ({
   label: 'Battery voltage',
-  value: `${robotStore.batteryVoltage.toFixed(2)} V`,
-  state: batteryState[robotStore.batteryState],
+  value: `${robotStore.robotState.battery_voltage.toFixed(2)} V`,
+  state: batteryState[robotStore.robotState.battery_level],
   gauge: clamp01(
-    (robotStore.batteryVoltage - BATTERY_MIN_VOLTAGE) / (BATTERY_MAX_VOLTAGE - BATTERY_MIN_VOLTAGE),
+    (robotStore.robotState.battery_voltage - BATTERY_MIN_VOLTAGE) /
+      (BATTERY_MAX_VOLTAGE - BATTERY_MIN_VOLTAGE),
   ),
 }))
 
@@ -83,11 +84,11 @@ const vitals = computed(() => [connectionVital.value, batteryVital.value])
     <div class="grid grid-cols-4">
       <button
         class="btn"
-        :class="robotStore.armState === 'Armed' ? 'btn-danger' : 'btn-primary'"
-        :disabled="robotStore.armState === 'CannotArm' || !robotStore.isConnected"
-        @click="robotStore.sendMessage({ Arm: robotStore.armState !== 'Armed' })"
+        :class="robotStore.robotState.arm === 'Armed' ? 'btn-danger' : 'btn-primary'"
+        :disabled="robotStore.robotState.arm === 'CannotArm' || !robotStore.isConnected"
+        @click="robotStore.sendMessage({ Arm: robotStore.robotState.arm !== 'Armed' })"
       >
-        {{ robotStore.armState === 'Armed' ? 'Disarm' : 'Arm' }}
+        {{ robotStore.robotState.arm === 'Armed' ? 'Disarm' : 'Arm' }}
       </button>
     </div>
   </div>

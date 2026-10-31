@@ -3,9 +3,9 @@ import type { RpiToGcs } from '@/bindings/RpiToGcs.ts'
 import { decode, encode } from '@msgpack/msgpack'
 import { computed, ref, shallowRef } from 'vue'
 import type { LidarPoint } from '@/bindings/LidarPoint.ts'
-import type { BatteryState } from '@/bindings/BatteryState.ts'
 import type { GcsToRpi } from '@/bindings/GcsToRpi.ts'
-import type { ArmState } from '@/bindings/ArmState.ts'
+import { createRpcClient } from '@/utils/rpc.ts'
+import type { RobotState } from '@/bindings/RobotState.ts'
 
 export const useRobotStore = defineStore('robot', () => {
   const websocket = new WebSocket(`/ws`)
@@ -14,12 +14,25 @@ export const useRobotStore = defineStore('robot', () => {
   const connectionState = ref(websocket.readyState)
   const isConnected = computed(() => connectionState.value === WebSocket.OPEN)
   const lidarScan = shallowRef<LidarPoint[]>([])
-  const batteryVoltage = ref<number>(0)
-  const batteryState = ref<BatteryState>('High')
-  const armState = ref<ArmState>('Disarmed')
+  const robotState = ref<RobotState>({
+    battery_voltage: 0,
+    battery_level: 'Critical',
+    arm: 'CannotArm',
+  })
 
-  websocket.onopen = () => {
+  const rpc = createRpcClient((m) => {
+    websocket.send(encode(m))
+  })
+
+  const sendRequest = rpc.request
+
+  websocket.onopen = async () => {
     connectionState.value = websocket.readyState
+    try {
+      robotState.value = await rpc.request('GetState')
+    } catch (e) {
+      console.warn(e)
+    }
   }
 
   websocket.onclose = () => {
@@ -36,14 +49,16 @@ export const useRobotStore = defineStore('robot', () => {
   }
 
   function dispatchMessage(message: RpiToGcs) {
-    if ('LidarScan' in message) {
+    if (rpc.handleMessage(message)) {
+      return
+    } else if ('LidarScan' in message) {
       lidarScan.value = message.LidarScan
     } else if ('BatteryVoltage' in message) {
-      batteryVoltage.value = message.BatteryVoltage
-    } else if ('BatteryState' in message) {
-      batteryState.value = message.BatteryState
+      robotState.value.battery_voltage = message.BatteryVoltage
+    } else if ('BatteryLevel' in message) {
+      robotState.value.battery_level = message.BatteryLevel
     } else if ('ArmState' in message) {
-      armState.value = message.ArmState
+      robotState.value.arm = message.ArmState
     } else {
       const _exhaustiveCheck: never = message
       return _exhaustiveCheck
@@ -56,11 +71,10 @@ export const useRobotStore = defineStore('robot', () => {
 
   return {
     lidarScan,
-    batteryVoltage,
     connectionState,
-    batteryState,
+    robotState,
     sendMessage,
-    armState,
     isConnected,
+    sendRequest,
   }
 })

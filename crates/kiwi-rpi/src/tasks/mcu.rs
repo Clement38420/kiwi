@@ -34,8 +34,9 @@ pub(crate) async fn mcu_task(
                 Ok(message) => {
                     match &message {
                         McuToRpi::BatteryVoltage(_)
-                        | McuToRpi::BatteryState(_)
-                        | McuToRpi::ArmState(_) => {}
+                        | McuToRpi::BatteryLevel(_)
+                        | McuToRpi::ArmState(_)
+                        | McuToRpi::GetStateRes(_) => {}
                     }
 
                     // If the message can be converted to RpiToGcs, forward it

@@ -4,7 +4,7 @@ use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
 use embassy_sync::signal::Signal;
 use embassy_sync::watch::Watch;
 use embassy_sync::{channel, watch};
-use shared::messages::{ArmState, BatteryState};
+use shared::messages::{ArmState, BatteryLevel};
 use shared::messages::{McuToRpi, RpiToMcu};
 
 fn update_watch<T: PartialEq + Copy, const N: usize>(
@@ -23,19 +23,40 @@ fn update_watch<T: PartialEq + Copy, const N: usize>(
     });
     changed.get()
 }
-
-const BATTERY_STATE_RECEIVERS: usize = 2;
-static BATTERY_STATE: Watch<ThreadModeRawMutex, BatteryState, BATTERY_STATE_RECEIVERS> =
-    Watch::new();
-pub fn update_battery_state(new_state: BatteryState) {
-    update_watch(&BATTERY_STATE, new_state);
+const BATTERY_VOLTAGE_RECEIVERS: usize = 1;
+static BATTERY_VOLTAGE: Watch<ThreadModeRawMutex, f32, BATTERY_VOLTAGE_RECEIVERS> =
+    Watch::new_with(0.0);
+pub fn update_battery_voltage(new_state: f32) {
+    update_watch(&BATTERY_VOLTAGE, new_state);
 }
-pub fn subscribe_battery_state()
--> watch::Receiver<'static, ThreadModeRawMutex, BatteryState, BATTERY_STATE_RECEIVERS> {
+pub fn subscribe_battery_voltage()
+-> watch::Receiver<'static, ThreadModeRawMutex, f32, BATTERY_VOLTAGE_RECEIVERS> {
     defmt::expect!(
-        BATTERY_STATE.receiver(),
-        "CHANNELS: No more battery state receiver available."
+        BATTERY_VOLTAGE.receiver(),
+        "CHANNELS: No more battery voltage receiver available."
     )
+}
+#[allow(clippy::missing_panics_doc)]
+pub fn get_battery_voltage() -> f32 {
+    BATTERY_VOLTAGE.try_get().unwrap() // BATTERY_VOLTAGE is initialized with a value, so it is safe to unwrap
+}
+
+const BATTERY_LEVEL_RECEIVERS: usize = 2;
+static BATTERY_LEVEL: Watch<ThreadModeRawMutex, BatteryLevel, BATTERY_LEVEL_RECEIVERS> =
+    Watch::new_with(BatteryLevel::High);
+pub fn update_battery_level(new_state: BatteryLevel) {
+    update_watch(&BATTERY_LEVEL, new_state);
+}
+pub fn subscribe_battery_level()
+-> watch::Receiver<'static, ThreadModeRawMutex, BatteryLevel, BATTERY_LEVEL_RECEIVERS> {
+    defmt::expect!(
+        BATTERY_LEVEL.receiver(),
+        "CHANNELS: No more battery level receiver available."
+    )
+}
+#[allow(clippy::missing_panics_doc)]
+pub fn get_battery_level() -> BatteryLevel {
+    BATTERY_LEVEL.try_get().unwrap() // BATTERY_LEVEL is initialized with a value, so it is safe to unwrap
 }
 
 pub static ARM_CMD: Signal<ThreadModeRawMutex, bool> = Signal::new();
