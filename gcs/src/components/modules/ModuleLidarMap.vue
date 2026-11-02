@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { House } from '@lucide/vue'
+import { House, ZoomIn, ZoomOut } from '@lucide/vue'
 import { useRobotStore } from '@/stores/robot.ts'
 import { useTemplateRef } from 'vue'
 import { useViewport } from '@/composables/useViewport.ts'
@@ -7,7 +7,7 @@ import { useViewport } from '@/composables/useViewport.ts'
 const robotStore = useRobotStore()
 const canvas = useTemplateRef<HTMLCanvasElement>('scan-canvas')
 
-const { ppu, upd, resetViewport } = useViewport(canvas, (ctx) => {
+const { zoom, ppu, upd, resetViewport } = useViewport(canvas, (ctx) => {
   ctx.fillStyle = getComputedStyle(ctx.canvas).color
   robotStore.lidarScan.forEach((point) => {
     const angle_rad = (point.angle * Math.PI) / 180
@@ -25,7 +25,13 @@ const { ppu, upd, resetViewport } = useViewport(canvas, (ctx) => {
 <template>
   <div class="group relative w-full h-full p-4 flex flex-col">
     <div class="group-title">Lidar map</div>
-    <div class="group absolute bg-background flex gap-4 right-4 top-4 py-2 px-2 text-ink-muted">
+    <div class="group absolute bg-background flex right-4 top-4 py-2 px-2 text-ink-muted">
+      <button class="btn btn-icon size-9" @click="zoom *= 2">
+        <ZoomIn />
+      </button>
+      <button class="btn btn-icon size-9" @click="zoom *= 0.5">
+        <ZoomOut />
+      </button>
       <button class="btn btn-icon size-9" @click="resetViewport">
         <House />
       </button>
