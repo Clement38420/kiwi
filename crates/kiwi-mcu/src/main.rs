@@ -14,10 +14,7 @@ use panic_probe as _;
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
-    let p = embassy_stm32::init(Default::default());
-    info!("Salut moi c'est la mcu de Kiwi!");
-
-    let b = match board::Board::init(p) {
+    let b = match board::Board::init() {
         Ok(board) => board,
         Err(e) => match e {
             board::BoardInitError::Uart(e) => {
@@ -28,6 +25,7 @@ async fn main(spawner: Spawner) {
             }
         },
     };
+    info!("Salut moi c'est la mcu de Kiwi!");
 
     Timer::after(embassy_time::Duration::from_millis(500)).await; // wait for the peripherals to stabilize
 

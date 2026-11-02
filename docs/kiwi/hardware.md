@@ -6,7 +6,7 @@ This document gathers all hardware specifications directly tied to the embedded 
 
 ## 1. Real-Time Unit: NUCLEO-F767ZI (`STM32F767ZI`)
 
-- **Microcontroller**: ARM Cortex-M7 @ up to 216 MHz (`thumbv7em-none-eabihf`).
+- **Microcontroller**: ARM Cortex-M7 @ 216 MHz (`thumbv7em-none-eabihf`, clocked from the 8 MHz ST-LINK MCO in `HSE Bypass` mode via PLL: `SYSCLK = 216 MHz`, `PCLK1 = 54 MHz`, `PCLK2 = 108 MHz`).
 - **Vendor Manuals**:
   - `docs/ST/um-stm32-nucleo144.pdf` (ST Zio / Morpho connector pinouts, board jumpers).
   - `docs/ST/rm-stm32f76xxx.pdf` (Registers, peripherals, timers).
@@ -15,8 +15,8 @@ This document gathers all hardware specifications directly tied to the embedded 
 | Peripheral | Usage | Configuration Details |
 | :--- | :--- | :--- |
 | **`TIM12`** | Embassy Time Driver | Configured via the `time-driver-tim12` feature of `embassy-stm32` (32,768 Hz tick). |
-| **`TIM3`** | Motor PWM (Wheels 1, 2, 3) | `20 kHz`, Edge-Aligned Up (`SimplePwm` on `CH1`, `CH2`, `CH3`). |
-| **`TIM2`** | Encoder Input Capture | 32-bit timer clocked at `1 MHz` (`1 µs` per tick), hardware filter `FCK_INT_N8` (~500 ns cutoff at 16 MHz), falling-edge interrupt. |
+| **`TIM3`** | Motor PWM (Wheels 1, 2, 3) | `20 kHz`, Edge-Aligned Up (`SimplePwm` on `CH1`, `CH2`, `CH3`, 5,400 duty steps at 108 MHz timer clock). |
+| **`TIM2`** | Encoder Input Capture | 32-bit timer clocked at `1 MHz` (`1 µs` per tick), hardware filter `FDTS_DIV8_N8` (~593 ns cutoff at 108 MHz timer clock), falling-edge interrupt. |
 | **`ADC1`** | Battery Voltage Sense | `10-bit` resolution ($0\dots 1023$), `SampleTime::CYCLES144`, 32-sample averaging. |
 | **`USART1`** | RPi Serial Link | `115200` baud, 8N1, interrupt-driven (`BufferedUart` with 256-byte RX/TX buffers). |
 

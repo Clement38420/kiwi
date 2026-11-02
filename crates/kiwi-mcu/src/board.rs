@@ -44,16 +44,21 @@
 
 use crate::drivers;
 use embassy_stm32::{
+    Config,
     adc::{AdcChannel, AdcConfig, AnyAdcChannel, Resolution},
     gpio::{Level, Output, OutputType, Pull, Speed},
     interrupt::typelevel::Handler,
+    rcc::{
+        AHBPrescaler, APBPrescaler, Hse, HseMode, Pll, PllMul, PllPDiv, PllPreDiv, PllSource,
+        Sysclk,
+    },
     time::{Hertz, mhz},
     timer::{
         input_capture::CapturePin,
         low_level::{CountingMode, FilterValue},
         simple_pwm::{PwmPin, SimplePwm, SimplePwmChannels},
     },
-    {Peripherals, adc, bind_interrupts, interrupt, peripherals, timer, usart},
+    {adc, bind_interrupts, interrupt, peripherals, timer, usart},
 };
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, mutex::Mutex, once_lock::OnceLock};
 use static_cell::ConstStaticCell;
@@ -61,7 +66,7 @@ use static_cell::ConstStaticCell;
 static WHEEL_ENCODERS_TIM: OnceLock<drivers::one_channel_encoder::Timer<peripherals::TIM2>> =
     OnceLock::new();
 const WHEEL_ENCODER_TIM_TICK: Hertz = mhz(1);
-const WHEEL_ENCODER_FILTER: FilterValue = FilterValue::FCK_INT_N8; // Timer clock is 16 MHz, so the filter cut-off is 500ns
+const WHEEL_ENCODER_FILTER: FilterValue = FilterValue::FDTS_DIV8_N8; // Timer clock is 108 MHz (fDTS = 108 MHz), so 8 samples at fDTS/8 gives a ~593ns filter cut-off
 const WHEEL_ENCODER_MAX_PERIOD: u32 = 100_000;
 pub const WHEEL_ENCODER_RADIANS_PER_TICK: f32 = 1.0 / 6.0 / 27.0 * 2.0 * core::f32::consts::PI; // 6 * 27 ticks per revolution after the gearbox
 
@@ -108,7 +113,28 @@ pub enum BoardInitError {
 }
 
 impl Board {
-    pub fn init(p: Peripherals) -> Result<Board, BoardInitError> {
+    pub fn init() -> Result<Board, BoardInitError> {
+        let mut config = Config::default();
+        config.rcc.hsi = false;
+        config.rcc.hse = Some(Hse {
+            freq: mhz(8), // 8 MHz MCO clock from ST-LINK
+            mode: HseMode::Bypass,
+        });
+        config.rcc.pll_src = PllSource::HSE;
+        config.rcc.pll = Some(Pll {
+            prediv: PllPreDiv::DIV4,   // 8 MHz / 4 = 2 MHz PLL input
+            mul: PllMul::MUL216,       // 2 MHz * 216 = 432 MHz VCO
+            divp: Some(PllPDiv::DIV2), // 432 MHz / 2 = 216 MHz SYSCLK
+            divq: None,
+            divr: None,
+        });
+        config.rcc.sys = Sysclk::PLL1_P;
+        config.rcc.ahb_pre = AHBPrescaler::DIV1; // HCLK = 216 MHz
+        config.rcc.apb1_pre = APBPrescaler::DIV4; // PCLK1 = 54 MHz (APB1 timers = 108 MHz)
+        config.rcc.apb2_pre = APBPrescaler::DIV2; // PCLK2 = 108 MHz (APB2 timers = 216 MHz)
+
+        let p = embassy_stm32::init(config);
+
         bind_interrupts!(
             struct Irqs {
                 TIM2 => WheelEncodersIRQ;

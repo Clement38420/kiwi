@@ -9,10 +9,10 @@ The embedded firmware runs on the **NUCLEO-F767ZI** board (`STM32F767ZI`, ARM Co
 The codebase follows a strict 4-layer separation:
 
 1. **[`main.rs`](../../crates/kiwi-mcu/src/main.rs)**:
-   - Initializes the `embassy_stm32` HAL, calls `Board::init(p)`, waits 500 ms for peripherals to stabilize, and spawns (`spawner.spawn`) all asynchronous tasks.
+   - Calls `Board::init()`, waits 500 ms for peripherals to stabilize, and spawns (`spawner.spawn`) all asynchronous tasks.
 2. **[`board.rs`](../../crates/kiwi-mcu/src/board.rs)**:
-   - **The only file allowed to directly reference hardware pins (`p.PA6`, `p.PB14`, etc.) and low-level peripheral configuration** (timer frequencies, ADC resolution, `bind_interrupts!` mappings, static DMA/UART buffers).
-   - Instantiates drivers and returns a [`Board`](../../crates/kiwi-mcu/src/board.rs#L93-L103) struct whose fields are moved into their respective tasks.
+   - **The only file allowed to directly reference hardware pins (`p.PA6`, `p.PB14`, etc.) and low-level peripheral configuration** (216 MHz HSE+PLL clock tree, timer frequencies, ADC resolution, `bind_interrupts!` mappings, static DMA/UART buffers).
+   - Instantiates drivers and returns a [`Board`](../../crates/kiwi-mcu/src/board.rs#L100-L110) struct whose fields are moved into their respective tasks.
 3. **[`drivers/`](../../crates/kiwi-mcu/src/drivers/)**:
    - Reusable hardware abstractions decoupled from application logic:
      - [`blm3650.rs`](../../crates/kiwi-mcu/src/drivers/blm3650.rs): BLM3650 brushless motor driver (20 kHz PWM + Open-Drain `direction` and `brake` pins with `PWM_DEAD_ZONE = 0.08`).
