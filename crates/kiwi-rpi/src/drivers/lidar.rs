@@ -90,10 +90,7 @@ impl Lidar {
         loop {
             match self.read_scan_packet().await {
                 Ok(packet) if packet.package_type == ScanPacketType::Start => break,
-                Ok(_) => {}
-                Err(e @ LidarError::CorruptPacket) => {
-                    eprintln!("{e}");
-                }
+                Ok(_) | Err(LidarError::CorruptPacket) => {}
                 Err(e) => return Err(e),
             }
         }
