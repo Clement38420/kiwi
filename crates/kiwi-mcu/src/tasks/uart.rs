@@ -16,6 +16,7 @@ async fn uart_rx_task(mut uart: usart::BufferedUartRx<'static>) {
     let mut rx_buffer = [0u8; UART1_RX_BUFFER_SIZE];
 
     let mut i = 0;
+    let mut overflow = false;
     loop {
         let mut byte = [0u8; 1];
         if let Err(e) = uart.read_exact(&mut byte).await {
@@ -27,28 +28,35 @@ async fn uart_rx_task(mut uart: usart::BufferedUartRx<'static>) {
         let b = byte[0];
 
         if b == 0x00 {
-            match messages::decode(&mut rx_buffer[..i]) {
-                Ok(message) => {
-                    if let Err(e) = UART_RX.try_send(message) {
+            if overflow {
+                error!("UART RX: Frame exceeded buffer size, discarding");
+                overflow = false;
+            } else {
+                match messages::decode(&mut rx_buffer[..i]) {
+                    Ok(message) => {
+                        if let Err(e) = UART_RX.try_send(message) {
+                            error!(
+                                "UART RX: Failed to send message to channel: {:?}",
+                                defmt::Debug2Format(&e)
+                            );
+                        }
+                    }
+                    Err(e) => {
                         error!(
-                            "UART RX: Failed to send message to channel: {:?}",
-                            defmt::Debug2Format(&e)
+                            "UART RX: {:?}: Failed to decode message : {=[u8]:x}",
+                            e,
+                            &rx_buffer[..i]
                         );
                     }
-                }
-                Err(e) => {
-                    error!(
-                        "UART RX: {:?}: Failed to decode message : {=[u8]:x}",
-                        e,
-                        &rx_buffer[..i]
-                    );
                 }
             }
 
             i = 0;
-        } else {
+        } else if i < UART1_RX_BUFFER_SIZE {
             rx_buffer[i] = b;
-            i = (i + 1) % UART1_RX_BUFFER_SIZE;
+            i += 1;
+        } else {
+            overflow = true;
         }
     }
 }
