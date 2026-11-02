@@ -221,10 +221,9 @@ impl Lidar {
         let mut points: Vec<DataPoint> = Vec::new();
         loop {
             let packet = self.read_scan_packet().await?;
+            points.extend(packet.sample_data);
             if packet.package_type == ScanPacketType::Start {
                 break;
-            } else if packet.package_type == ScanPacketType::Data {
-                points.extend(packet.sample_data);
             }
         }
 
