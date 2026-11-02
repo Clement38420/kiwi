@@ -5,7 +5,7 @@ import ModuleLidarMap from '@/components/modules/ModuleLidarMap.vue'
 </script>
 
 <template>
-  <div class="bg-bg h-dvh flex flex-col">
+  <div class="bg-background h-dvh flex flex-col">
     <AppBar />
     <main class="p-4 grid grid-cols-5 grid-rows-5 flex-1 gap-4 min-h-0">
       <ModuleHealth class="col-span-2 row-span-2" />
