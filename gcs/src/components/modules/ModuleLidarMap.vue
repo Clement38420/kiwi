@@ -10,10 +10,9 @@ const canvas = useTemplateRef<HTMLCanvasElement>('scan-canvas')
 const { zoom, ppu, upd, resetViewport } = useViewport(canvas, (ctx) => {
   ctx.fillStyle = getComputedStyle(ctx.canvas).color
   robotStore.lidarScan.forEach((point) => {
-    const angle_rad = (point.angle * Math.PI) / 180
-    const distance_px = point.distance * 0.001 * ppu.value
-    const x = Math.sin(angle_rad) * distance_px
-    const y = -Math.cos(angle_rad) * distance_px
+    const distance_px = point.distance * ppu.value
+    const x = Math.sin(point.angle) * distance_px
+    const y = -Math.cos(point.angle) * distance_px
     ctx.fillRect(x - 1, y - 1, 2, 2)
   })
 

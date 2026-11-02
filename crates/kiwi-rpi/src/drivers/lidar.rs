@@ -136,7 +136,10 @@ impl Lidar {
 
         angle = angle.rem_euclid(360.0);
 
-        DataPoint { angle, distance }
+        DataPoint {
+            angle: angle.to_radians(),
+            distance: distance * 0.001,
+        }
     }
 
     async fn read_scan_packet(&mut self) -> LidarResult<ScanPacket> {
