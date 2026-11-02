@@ -21,9 +21,7 @@ export const useRobotStore = defineStore('robot', () => {
     arm: 'CannotArm',
   })
 
-  const rpc = createRpcClient((m) => {
-    websocket.send(encode(m))
-  })
+  const rpc = createRpcClient(sendMessage)
 
   const sendRequest = rpc.request
 
@@ -38,6 +36,7 @@ export const useRobotStore = defineStore('robot', () => {
 
   websocket.onclose = () => {
     connectionState.value = websocket.readyState
+    rpc.rejectAll('ConnectionClosed')
   }
 
   websocket.onerror = () => {
@@ -67,7 +66,9 @@ export const useRobotStore = defineStore('robot', () => {
   }
 
   function sendMessage(message: GcsToRpi) {
-    websocket.send(encode(message))
+    if (websocket.readyState === WebSocket.OPEN) {
+      websocket.send(encode(message))
+    }
   }
 
   return {
