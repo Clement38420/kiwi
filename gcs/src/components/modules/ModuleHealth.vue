@@ -83,9 +83,8 @@ const vitals = computed(() => [connectionVital.value, batteryVital.value])
     </div>
     <div class="grid grid-cols-4">
       <button
-        class="btn"
-        :data-state="robotStore.robotState.arm === 'Armed' ? 'crit' : undefined"
-        :class="robotStore.robotState.arm === 'Armed' ? 'btn-semantic' : 'btn-primary'"
+        class="btn btn-semantic"
+        :data-state="robotStore.robotState.arm === 'Armed' ? 'crit' : 'ok'"
         :disabled="robotStore.robotState.arm === 'CannotArm' || !robotStore.isConnected"
         @click="robotStore.sendMessage({ Arm: robotStore.robotState.arm !== 'Armed' })"
       >
