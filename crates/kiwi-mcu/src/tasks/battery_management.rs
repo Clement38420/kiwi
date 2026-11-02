@@ -58,7 +58,7 @@ pub async fn battery_monitoring_task(
 ) {
     let mut battery_level = compute_battery_level(BatteryLevel::High, 1000);
 
-    channels::update_battery_level(battery_level);
+    channels::update_battery_level(battery_level).await;
 
     let mut ticker = embassy_time::Ticker::every(embassy_time::Duration::from_millis(1000));
     loop {
@@ -76,14 +76,11 @@ pub async fn battery_monitoring_task(
         let battery_voltage = f32::from(battery_raw_voltage) * BATTERY_VOLTAGE_RATIO;
 
         battery_level = compute_battery_level(battery_level, battery_raw_voltage);
-        channels::update_battery_level(battery_level);
+        channels::update_battery_level(battery_level).await;
         channels::update_battery_voltage(battery_voltage);
 
         UART_TX
             .send(messages::McuToRpi::BatteryVoltage(battery_voltage))
-            .await;
-        UART_TX
-            .send(messages::McuToRpi::BatteryLevel(battery_level))
             .await;
 
         ticker.next().await;

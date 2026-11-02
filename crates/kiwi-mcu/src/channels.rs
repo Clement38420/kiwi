@@ -44,8 +44,10 @@ pub fn get_battery_voltage() -> f32 {
 const BATTERY_LEVEL_RECEIVERS: usize = 2;
 static BATTERY_LEVEL: Watch<ThreadModeRawMutex, BatteryLevel, BATTERY_LEVEL_RECEIVERS> =
     Watch::new_with(BatteryLevel::High);
-pub fn update_battery_level(new_state: BatteryLevel) {
-    update_watch(&BATTERY_LEVEL, new_state);
+pub async fn update_battery_level(new_state: BatteryLevel) {
+    if update_watch(&BATTERY_LEVEL, new_state) {
+        UART_TX.send(McuToRpi::BatteryLevel(new_state)).await;
+    }
 }
 pub fn subscribe_battery_level()
 -> watch::Receiver<'static, ThreadModeRawMutex, BatteryLevel, BATTERY_LEVEL_RECEIVERS> {
