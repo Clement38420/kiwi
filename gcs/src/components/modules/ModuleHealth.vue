@@ -56,7 +56,7 @@ const vitals = computed(() => [connectionVital.value, batteryVital.value])
 </script>
 
 <template>
-  <div class="group w-full md:w-1/2 xl:w-1/3 text-sm flex flex-col gap-4">
+  <div class="group text-sm flex flex-col gap-4 w-full">
     <p class="group-title">Health</p>
     <div class="card w-full">
       <div class="tel-list">
@@ -84,7 +84,8 @@ const vitals = computed(() => [connectionVital.value, batteryVital.value])
     <div class="grid grid-cols-4">
       <button
         class="btn"
-        :class="robotStore.robotState.arm === 'Armed' ? 'btn-danger' : 'btn-primary'"
+        :data-state="robotStore.robotState.arm === 'Armed' ? 'crit' : undefined"
+        :class="robotStore.robotState.arm === 'Armed' ? 'btn-semantic' : 'btn-primary'"
         :disabled="robotStore.robotState.arm === 'CannotArm' || !robotStore.isConnected"
         @click="robotStore.sendMessage({ Arm: robotStore.robotState.arm !== 'Armed' })"
       >

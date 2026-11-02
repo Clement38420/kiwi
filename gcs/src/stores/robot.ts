@@ -8,7 +8,8 @@ import { createRpcClient } from '@/utils/rpc.ts'
 import type { RobotState } from '@/bindings/RobotState.ts'
 
 export const useRobotStore = defineStore('robot', () => {
-  const websocket = new WebSocket(`/ws`)
+  const wsUrl = import.meta.env.DEV ? 'ws://kiwi.local:8080/ws' : '/ws'
+  const websocket = new WebSocket(wsUrl)
   websocket.binaryType = 'arraybuffer'
 
   const connectionState = ref(websocket.readyState)
