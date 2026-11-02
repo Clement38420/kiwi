@@ -26,7 +26,7 @@ pub async fn safety_task(mut pwr_cmd: Output<'static>) {
                     pwr_cmd.set_low();
                     update_arm_state(ArmState::CannotArm).await;
                     error!("SAFETY TASK: Battery critical! Cutting power to the system.");
-                } else {
+                } else if get_arm_state() == ArmState::CannotArm {
                     update_arm_state(ArmState::Disarmed).await;
                 }
             }
