@@ -7,11 +7,13 @@
 ### Integrated Build Pipeline (`build.rs`)
 During `cargo build`, [`crates/kiwi-rpi/build.rs`](../../crates/kiwi-rpi/build.rs) automatically runs `pnpm --dir ../../gcs build-only` whenever files in `gcs/` change. The resulting `gcs/dist/` folder is embedded directly into the Rust binary via `#[derive(RustEmbed)]` in [`tasks/gcs.rs`](../../crates/kiwi-rpi/src/tasks/gcs.rs#L21-L23). A single standalone binary therefore serves both the robotics backend and the web frontend.
 
-### Channel Architecture in `main.rs`
-Unlike the MCU which uses `static` variables (`no_std`), [`crates/kiwi-rpi/src/main.rs`](../../crates/kiwi-rpi/src/main.rs) instantiates Tokio channels in `main()` and passes cloned `Sender` handles to tasks:
+### Shared State & Channel Architecture in `main.rs`
+Unlike the MCU which uses `static` variables (`no_std`), [`crates/kiwi-rpi/src/main.rs`](../../crates/kiwi-rpi/src/main.rs) instantiates shared state and Tokio channels in `main()` and passes cloned handles to tasks:
 
+- **`robot_state` (`Arc<RwLock<RobotState>>`)**:
+  In-memory digital twin of the robot's persistent state (`RobotState`, containing `mcu: McuState`). Updated by `mcu_task` whenever the STM32 reports a state change, and read directly by `gcs_task` to immediately answer `GetStateReq` RPC requests without round-tripping over UART.
 - **`gcs_tx` (`broadcast::Sender<RpiToGcs>`, capacity 64)**:
-  Outbound stream to connected WebSocket clients. Using a `broadcast` channel allows multiple open browser tabs/clients to simultaneously receive telemetry and LiDAR scans.
+  Outbound stream to connected WebSocket clients. Using a `broadcast` channel allows multiple open browser tabs/clients to simultaneously receive `RobotState` updates and LiDAR scans.
 - **`mcu_tx` (`broadcast::Sender<RpiToMcu>`, capacity 64)**:
   Outbound command stream to the STM32 (fed by the GCS or future RPi autonomy tasks).
 - **`lidar_tx` (`watch::Sender<Arc<Vec<LidarPoint>>>`)**:
@@ -21,8 +23,9 @@ Unlike the MCU which uses `static` variables (`no_std`), [`crates/kiwi-rpi/src/m
 
 1. **MCU Task ([`tasks/mcu.rs`](../../crates/kiwi-rpi/src/tasks/mcu.rs)) & Driver ([`drivers/mcu.rs`](../../crates/kiwi-rpi/src/drivers/mcu.rs))**:
    - Opens `/dev/serial0` at `115200` baud (automatically retrying every 5 seconds on open failure or serial disconnect).
+   - Immediately sends `RpiToMcu::SyncState` upon opening the serial port so the STM32 replies with its full `McuState`.
    - Runs a bidirectional `tokio::select!` loop:
-     - **RX (`mcu.receive_message()`)**: Reads the serial stream up to `0x00` (`read_until(0x00)`), strips the delimiter, decodes via `shared::messages::decode`, and automatically forwards the message to `gcs_tx` if `RpiToGcs::try_from(message)` succeeds.
+     - **RX (`mcu.receive_message()`)**: Reads the serial stream up to `0x00` (`read_until(0x00)`), strips the delimiter, and decodes via `shared::messages::decode`. State messages (`BatteryVoltage`, `BatteryLevel`, `ArmState`, `McuState`) mutate `robot_state` via `update_state` and broadcast the updated `RpiToGcs::RobotState` on `gcs_tx`. Other messages are forwarded to `gcs_tx` if `RpiToGcs::try_from(message)` succeeds.
      - **TX (`sending_queue.recv()`)**: Encodes incoming `RpiToMcu` messages with `shared::messages::encode` and writes them to the serial port.
 
 2. **LiDAR Task ([`tasks/lidar.rs`](../../crates/kiwi-rpi/src/tasks/lidar.rs)) & Driver ([`drivers/lidar.rs`](../../crates/kiwi-rpi/src/drivers/lidar.rs))**:
@@ -32,10 +35,10 @@ Unlike the MCU which uses `static` variables (`no_std`), [`crates/kiwi-rpi/src/m
    - Implements `Drop` on `Lidar` to send `STOP_SCAN_CMD` (`[0xA5, 0x65]`) on shutdown.
 
 3. **GCS Task ([`tasks/gcs.rs`](../../crates/kiwi-rpi/src/tasks/gcs.rs))**:
-   - **Axum** HTTP/WebSocket server listening on `0.0.0.0:8080`.
+   - **Axum** HTTP/WebSocket server listening on `0.0.0.0:8080` with shared `WsState` (`ws_sending_queue`, `mcu_sending_queue`, `robot_state`).
    - `/ws` route: WebSocket upgrade. Each connected client subscribes to `gcs_tx` (`sending_queue_tx.subscribe()`) and runs a `tokio::select!` loop:
-     - Serializes outgoing `RpiToGcs` messages with `rmp_serde::to_vec_named` and sends them as binary WebSocket frames.
-     - Deserializes incoming binary frames into `GcsToRpi` (`rmp_serde::from_slice`), and if `RpiToMcu::try_from(message)` succeeds, publishes them to `mcu_sending_queue`.
+     - Serializes outgoing `RpiToGcs` messages with `rmp_serde::to_vec_named` and sends them as binary WebSocket frames via `ws_send`.
+     - Deserializes incoming binary frames into `GcsToRpi` (`rmp_serde::from_slice`). `GetStateReq` RPC requests are answered immediately on the client's socket (`ws_send`) by reading `robot_state`. Messages convertible via `RpiToMcu::try_from(message)` are published to `mcu_sending_queue`.
    - HTTP fallback: Serves embedded static files from `gcs/dist/` (falling back to `index.html` for SPA routing).
 
 ---
@@ -51,10 +54,10 @@ Unlike the MCU which uses `static` variables (`no_std`), [`crates/kiwi-rpi/src/m
   - On close (`onclose`), rejects all pending RPC requests (`rpc.rejectAll('ConnectionClosed')`) and schedules an automatic reconnect after `2000 ms`.
 - **Initial State Synchronization (`GetState`)**:
   - Immediately upon WebSocket connection (`onopen`), the store executes `robotState.value = await rpc.request('GetState')`.
-  - This fetches the full STM32 state (`battery_voltage`, `battery_level`, `arm`) right away instead of waiting for a `Watch` value to change on the MCU.
+  - The RPi replies immediately from its in-memory `robot_state` (`battery_voltage`, `battery_level`, `arm`).
 - **Exhaustive Message Dispatch (`dispatchMessage`)**:
   - First passes incoming messages to `rpc.handleMessage(message)`, which intercepts any variant ending in `Res` (e.g., `GetStateRes`).
-  - Then branches on each telemetry variant (`LidarScan`, `BatteryVoltage`, `BatteryLevel`, `ArmState`).
+  - Then branches on each stream variant (`LidarScan`, `RobotState`).
   - Enforces compile-time exhaustiveness (`const _exhaustiveCheck: never = message`): **if a new variant is added to `RpiToGcs` in Rust and exported via `ts-rs`, TypeScript compilation will fail until `dispatchMessage` handles it.**
 - **Reactivity Optimization**:
   - `lidarScan` uses `shallowRef<LidarPoint[]>([])` instead of `ref()` to avoid deep reactive proxy overhead across hundreds of points on every LiDAR revolution.

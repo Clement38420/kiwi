@@ -7,16 +7,15 @@ This document details the exact procedures for extending robot features across a
 ## 1. Add a Monitored Telemetry State (`Watch`: MCU $\rightarrow$ RPi $\rightarrow$ GCS)
 
 Use this workflow when a persistent state or measurement on the MCU (e.g., temperature, actuator status, operating mode) must be:
-1. Automatically pushed to the GCS whenever it changes.
-2. Retrieved immediately when the GCS connects via the initial `GetState` RPC request.
+1. Stored in the RPi's `RobotState` digital twin and automatically pushed to the GCS whenever it changes.
+2. Retrieved immediately when the RPi connects to the MCU (`SyncState`) or when the GCS connects to the RPi (`GetState`).
 
 ### Step 1: Declare the type and messages in `crates/shared/src/messages.rs`
 1. If introducing a new `struct` or `enum`, derive:
    `#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]` and `#[cfg_attr(feature = "ts", derive(TS), ts(export))]`.
    *(Note: `PartialEq` and `Copy` are required by the MCU's `update_watch` helper).*
-2. Add the field to [`RobotState`](../../crates/shared/src/messages.rs#L33-L37) (for `GetState` initialization).
-3. Add the variant to [`McuToRpi`](../../crates/shared/src/messages.rs#L40-L45) and [`RpiToGcs`](../../crates/shared/src/messages.rs#L50-L56).
-4. Map the conversion in `impl TryFrom<McuToRpi> for RpiToGcs` so `kiwi-rpi` automatically forwards the message to the GCS.
+2. Add the field to [`McuState`](../../crates/shared/src/messages.rs#L31-L36) and its `Default` implementation (since `RobotState` flattens `McuState`, it will automatically appear at the top level of `RobotState` in TypeScript).
+3. Add the variant to [`McuToRpi`](../../crates/shared/src/messages.rs#L58-L63) and map it to `Err(())` in `impl TryFrom<McuToRpi> for RpiToGcs` (because `mcu_task` broadcasts the full `RpiToGcs::RobotState` instead of forwarding the raw MCU message).
 
 ### Step 2: Create the `Watch` in `crates/kiwi-mcu/src/channels.rs`
 1. Define the constant for the exact number of subscribed MCU tasks:
@@ -27,21 +26,20 @@ Use this workflow when a persistent state or measurement on the MCU (e.g., tempe
    - `pub async fn update_my_state(new_state: MyType)`: calls `if update_watch(&MY_STATE, new_state) { UART_TX.send(McuToRpi::MyState(new_state)).await; }`.
    - `pub fn subscribe_my_state() -> watch::Receiver<...>` (if local MCU tasks need `.changed().await`).
    - `pub fn get_my_state() -> MyType`: returns `MY_STATE.try_get().unwrap()`.
+4. In [`get_full_state()`](../../crates/kiwi-mcu/src/channels.rs#L86-L92), populate the new `McuState` field by calling `get_my_state()`.
 
-### Step 3: Update `GetState` in `crates/kiwi-mcu/src/tasks/communication.rs`
-In [`get_state_handler`](../../crates/kiwi-mcu/src/tasks/communication.rs#L28-L39), populate the new `RobotState` field by calling `get_my_state()`.
+### Step 3: Update `crates/kiwi-rpi/src/tasks/mcu.rs`
+In the receive loop of [`mcu_task`](../../crates/kiwi-rpi/src/tasks/mcu.rs#L44-L49), add the branch to update the RPi state twin and broadcast `RpiToGcs::RobotState`:
+`McuToRpi::MyState(v) => update_state(&robot_state, &gcs_tx, |s| s.mcu.my_state = *v),`
 
-### Step 4: Update `crates/kiwi-rpi/src/tasks/mcu.rs`
-In the receive loop of [`mcu_task`](../../crates/kiwi-rpi/src/tasks/mcu.rs#L36-L41), add `McuToRpi::MyState(_)` to the `match &message` statement. The `RpiToGcs::try_from(message)` below it will forward the update to `gcs_tx`.
-
-### Step 5: Regenerate TypeScript bindings and update `gcs`
+### Step 4: Regenerate TypeScript bindings and update `gcs`
 1. From `crates/shared/`, run:
    ```sh
-   TS_RS_EXPORT_DIR=../../gcs/src/bindings cargo test --features ts
+   ./generate_types.sh
    ```
 2. In [`gcs/src/stores/robot.ts`](../../gcs/src/stores/robot.ts):
    - Add the initial default field to `robotState`.
-   - Add the `else if ('MyState' in message)` branch in `dispatchMessage` to update `robotState.value.my_state`.
+   - *(No change is needed in `dispatchMessage` since `'RobotState' in message` already replaces `robotState.value` with the updated state).*
 
 ---
 
@@ -50,9 +48,9 @@ In the receive loop of [`mcu_task`](../../crates/kiwi-rpi/src/tasks/mcu.rs#L36-L
 Use this workflow to send an order without expecting a response (e.g., velocity setpoint, actuator toggle).
 
 ### Step 1: Declare the message in `crates/shared/src/messages.rs`
-1. Add the variant to [`RpiToMcu`](../../crates/shared/src/messages.rs#L93-L97).
+1. Add the variant to [`RpiToMcu`](../../crates/shared/src/messages.rs#L109-L113).
 2. If the command can be triggered from the Web UI:
-   - Also add the variant to [`GcsToRpi`](../../crates/shared/src/messages.rs#L75-L78).
+   - Also add the variant to [`GcsToRpi`](../../crates/shared/src/messages.rs#L91-L94).
    - Map the conversion in `impl TryFrom<GcsToRpi> for RpiToMcu`.
    - If the command is only sent by an algorithm running on the RPi (like `WheelSpeedSetpoints`), only add it to `RpiToMcu`.
 
@@ -64,8 +62,8 @@ Use this workflow to send an order without expecting a response (e.g., velocity 
 In [`message_dispatcher`](../../crates/kiwi-mcu/src/tasks/communication.rs#L9-L18), add `RpiToMcu::MyCmd(val)` to the `match` statement and call `MY_CMD.signal(val)` (or `MY_CMD.send(val).await`).
 
 ### Step 4: Handle on RPi and GCS (if exposed to GCS)
-1. In [`crates/kiwi-rpi/src/tasks/gcs.rs`](../../crates/kiwi-rpi/src/tasks/gcs.rs#L78-L86), add `GcsToRpi::MyCmd(_)` to `match &message`. `RpiToMcu::try_from(message)` will automatically forward it to `mcu_sending_queue`.
-2. Regenerate TS bindings (`TS_RS_EXPORT_DIR=../../gcs/src/bindings cargo test --features ts`).
+1. In [`crates/kiwi-rpi/src/tasks/gcs.rs`](../../crates/kiwi-rpi/src/tasks/gcs.rs#L99-L110), add `GcsToRpi::MyCmd(_)` to `match &message`. `RpiToMcu::try_from(message)` will automatically forward it to `mcu_sending_queue`.
+2. Regenerate TS bindings (`./generate_types.sh` in `crates/shared/`).
 3. Call `robotStore.sendMessage({ MyCmd: value })` from a Vue component.
 
 ---
@@ -78,22 +76,24 @@ Use this workflow when a call from the GCS requires an explicit response, return
 For an RPC named `<Action>` taking `ReqPayload` (use `()` if no argument) and returning `ResPayload`:
 1. In `GcsToRpi`: add `<Action>Req(RpcRequest<ReqPayload>)`.
 2. In `RpiToGcs`: add `<Action>Res(RpcResponse<ResPayload>)`.
-3. **If the RPC is handled by the MCU** (like `GetState`):
+3. **If the RPC is handled locally by the RPi** (like `GetState`):
+   - Map `GcsToRpi::<Action>Req(_) => Err(())` in `TryFrom<GcsToRpi> for RpiToMcu`.
+   - Do not add it to `RpiToMcu` or `McuToRpi`.
+4. **If the RPC must be forwarded to the MCU**:
    - Also add `<Action>Req(RpcRequest<ReqPayload>)` to `RpiToMcu` + its conversion in `TryFrom<GcsToRpi> for RpiToMcu`.
    - Also add `<Action>Res(RpcResponse<ResPayload>)` to `McuToRpi` + its conversion in `TryFrom<McuToRpi> for RpiToGcs`.
-4. **If the RPC is handled locally by the RPi**:
-   - Do not add it to `RpiToMcu` or `McuToRpi`.
 
 ### Step 2: Implement the handler
+- **On the RPi** (in [`crates/kiwi-rpi/src/tasks/gcs.rs`](../../crates/kiwi-rpi/src/tasks/gcs.rs#L101-L108)):
+  Match `GcsToRpi::<Action>Req(req)` and send the response directly to the requesting client's WebSocket:
+  `let res = RpiToGcs::<Action>Res(RpcResponse::new(req, payload));`
+  `if ws_send(&mut socket, &res).await.is_err() { break; }`
 - **On the MCU** (in [`crates/kiwi-mcu/src/tasks/communication.rs`](../../crates/kiwi-mcu/src/tasks/communication.rs)):
   Match `RpiToMcu::<Action>Req(req)` and reply via:
   `UART_TX.send(McuToRpi::<Action>Res(RpcResponse::new(&req, payload))).await;`
-- **On the RPi** (in [`crates/kiwi-rpi/src/tasks/gcs.rs`](../../crates/kiwi-rpi/src/tasks/gcs.rs)):
-  Match `GcsToRpi::<Action>Req(req)` and reply via:
-  `sending_queue_tx.send(RpiToGcs::<Action>Res(RpcResponse::new(&req, payload)));`
 
 ### Step 3: Export and call from GCS
-1. Export TS bindings (`TS_RS_EXPORT_DIR=../../gcs/src/bindings cargo test --features ts`).
+1. Export TS bindings (`./generate_types.sh` in `crates/shared/`).
 2. Thanks to type introspection in [`gcs/src/utils/rpc.ts`](../../gcs/src/utils/rpc.ts), no changes to the RPC client or `dispatchMessage` are needed: `rpc.handleMessage` automatically intercepts any message ending in `Res`.
 3. Call `const res = await robotStore.sendRequest('<Action>', arg)` (or without `arg` if `ReqPayload` is `()`).
 

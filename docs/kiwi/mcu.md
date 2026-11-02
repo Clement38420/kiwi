@@ -47,10 +47,10 @@ Every global state backed by a `Watch` in [`channels.rs`](../../crates/kiwi-mcu/
    Embassy statically allocates receiver slots for a `Watch`. The constant (e.g., `const BATTERY_LEVEL_RECEIVERS: usize = 2;`) must match the exact number of `subscribe_*()` calls across tasks. If another task subscribes without incrementing this constant, `defmt::expect!` will panic at startup with `"CHANNELS: No more ... receiver available."`.
 3. **Default initialization (`Watch::new_with(...)`)**:
    Every `Watch` is initialized with `Watch::new_with(default_val)` so that `.try_get().unwrap()` is guaranteed never to panic.
-4. **The 3 public accessor functions**:
+4. **The 3 public accessor functions** (plus `get_full_state`):
    - `pub async fn update_<name>(new_state: T)`: Calls the internal [`update_watch`](../../crates/kiwi-mcu/src/channels.rs#L10-L25) helper (`send_if_modified`). **If and only if the value changed**, it notifies local subscribers **and** automatically enqueues the update onto `UART_TX.send(McuToRpi::...).await`.
    - `pub fn subscribe_<name>() -> watch::Receiver<...>`: Returns a receiver for a task that reacts to state changes (`.changed().await` or `.get().await`).
-   - `pub fn get_<name>() -> T`: Immediate non-blocking read (`.try_get().unwrap()`), used notably by [`get_state_handler`](../../crates/kiwi-mcu/src/tasks/communication.rs#L28-L39) to answer `GetStateReq` RPC requests.
+   - `pub fn get_<name>() -> T`: Immediate non-blocking read (`.try_get().unwrap()`), aggregated by [`get_full_state()`](../../crates/kiwi-mcu/src/channels.rs#L86-L92) to build a complete `McuState` snapshot when the RPi sends `RpiToMcu::SyncState`.
 
 > [!IMPORTANT]
 > For noisy analog values like `BATTERY_VOLTAGE` (`f32`), mind the call frequency of `update_battery_voltage`: because `f32` changes on the slightest ADC fluctuation, calling it at high frequency would flood `UART_TX`. Currently, [`battery_monitoring_task`](../../crates/kiwi-mcu/src/tasks/battery_management.rs#L53-L82) averages 32 samples and updates once per second (`1000 ms`).
@@ -86,4 +86,4 @@ Every global state backed by a `Watch` in [`channels.rs`](../../crates/kiwi-mcu/
 - **`uart_task`**: Splits `USART1` into `tx` and `rx` and runs concurrently (`join`):
   - `uart_rx_task`: Reads byte-by-byte until `0x00`, handles buffer overflows (`256` bytes), decodes the frame via `shared::messages::decode`, and pushes it to `UART_RX`.
   - `uart_tx_task`: Waits for messages on `UART_TX`, encodes them via `shared::messages::encode`, and writes them to UART.
-- **`message_dispatcher`**: Consumes `UART_RX` and dispatches each `RpiToMcu` variant to the appropriate `Signal` (`WHEEL_SPEED_SETPOINTS`, `ARM_CMD`) or replies on `UART_TX` for RPC requests (`GetStateReq`).
+- **`message_dispatcher`**: Consumes `UART_RX` and dispatches each `RpiToMcu` variant to the appropriate `Signal` (`WHEEL_SPEED_SETPOINTS`, `ARM_CMD`) or replies on `UART_TX` with `McuToRpi::McuState(get_full_state())` when receiving `RpiToMcu::SyncState`.

@@ -2,4 +2,6 @@
 
 pub mod messages;
 pub mod pid;
+
+#[cfg(feature = "std")]
 pub mod rpc;

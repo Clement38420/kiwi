@@ -1,12 +1,17 @@
 use crate::drivers;
-use shared::messages::{McuToRpi, RpiToGcs};
+use messages::RpiToMcu;
+use shared::messages;
+use shared::messages::{McuToRpi, RobotState, RpiToGcs};
+use std::sync::{Arc, RwLock};
+use tokio::sync::broadcast;
 use tokio::sync::broadcast::error::RecvError;
 
 const MCU_PORT: &str = "/dev/serial0";
 
-pub(crate) async fn mcu_task(
-    sending_queue: tokio::sync::broadcast::Sender<shared::messages::RpiToMcu>,
-    gcs_tx: tokio::sync::broadcast::Sender<shared::messages::RpiToGcs>,
+pub async fn mcu_task(
+    sending_queue: broadcast::Sender<RpiToMcu>,
+    gcs_tx: broadcast::Sender<RpiToGcs>,
+    robot_state: Arc<RwLock<RobotState>>,
 ) {
     let mut sending_queue = sending_queue.subscribe();
 
@@ -19,7 +24,10 @@ pub(crate) async fn mcu_task(
                 .flow_control(tokio_serial::FlowControl::None);
 
             match drivers::mcu::Mcu::new(mcu_port_builder) {
-                Ok(mcu) => break mcu,
+                Ok(mut mcu) => {
+                    let _ = mcu.send_message(&RpiToMcu::SyncState).await;
+                    break mcu;
+                }
                 Err(e) => {
                     eprintln!(
                         "MCU: Failed to open serial port on {MCU_PORT}: {e}, retrying in 5 seconds..."
@@ -34,10 +42,10 @@ pub(crate) async fn mcu_task(
                 message = mcu.receive_message() => match message {
                     Ok(message) => {
                         match &message {
-                            McuToRpi::BatteryVoltage(_)
-                            | McuToRpi::BatteryLevel(_)
-                            | McuToRpi::ArmState(_)
-                            | McuToRpi::GetStateRes(_) => {}
+                            McuToRpi::BatteryVoltage(v) => update_state(&robot_state, &gcs_tx, |s| s.mcu.battery_voltage = *v),
+                            McuToRpi::BatteryLevel(v) => update_state(&robot_state, &gcs_tx, |s| s.mcu.battery_level = *v),
+                            McuToRpi::ArmState(v) => update_state(&robot_state, &gcs_tx, |s| s.mcu.arm = *v),
+                            McuToRpi::McuState(v) => update_state(&robot_state, &gcs_tx, |s| s.mcu = *v),
                         }
 
                         // If the message can be converted to RpiToGcs, forward it
@@ -70,4 +78,14 @@ pub(crate) async fn mcu_task(
             }
         }
     }
+}
+
+fn update_state(
+    robot_state: &RwLock<RobotState>,
+    gcs_tx: &broadcast::Sender<RpiToGcs>,
+    mutate: impl FnOnce(&mut RobotState),
+) {
+    let mut state = robot_state.write().unwrap();
+    mutate(&mut state);
+    let _ = gcs_tx.send(RpiToGcs::RobotState(*state));
 }

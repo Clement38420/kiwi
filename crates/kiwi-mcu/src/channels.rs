@@ -4,7 +4,7 @@ use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
 use embassy_sync::signal::Signal;
 use embassy_sync::watch::Watch;
 use embassy_sync::{channel, watch};
-use shared::messages::{ArmState, BatteryLevel};
+use shared::messages::{ArmState, BatteryLevel, McuState};
 use shared::messages::{McuToRpi, RpiToMcu};
 
 fn update_watch<T: PartialEq + Copy, const N: usize>(
@@ -63,7 +63,6 @@ pub fn get_battery_level() -> BatteryLevel {
     BATTERY_LEVEL.try_get().unwrap() // BATTERY_LEVEL is initialized with a value, so it is safe to unwrap
 }
 
-pub static ARM_CMD: Signal<ThreadModeRawMutex, bool> = Signal::new();
 const ARM_STATE_RECEIVERS: usize = 1;
 static ARM_STATE: Watch<ThreadModeRawMutex, ArmState, ARM_STATE_RECEIVERS> =
     Watch::new_with(ArmState::Disarmed);
@@ -83,6 +82,16 @@ pub fn subscribe_arm_state()
 pub fn get_arm_state() -> ArmState {
     ARM_STATE.try_get().unwrap() // ARM_STATE is initialized with a value, so it is safe to unwrap
 }
+
+pub fn get_full_state() -> McuState {
+    McuState {
+        battery_voltage: get_battery_voltage(),
+        battery_level: get_battery_level(),
+        arm: get_arm_state(),
+    }
+}
+
+pub static ARM_CMD: Signal<ThreadModeRawMutex, bool> = Signal::new();
 
 pub static UART_RX: Channel<ThreadModeRawMutex, RpiToMcu, 4> = Channel::new();
 

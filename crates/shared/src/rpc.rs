@@ -17,7 +17,6 @@ pub struct RpcRequest<P> {
 }
 
 impl<P> RpcRequest<P> {
-    #[cfg(feature = "std")]
     pub fn new(payload: P) -> Self {
         Self {
             payload,

@@ -9,24 +9,40 @@ use axum::{
     routing::any,
 };
 use rust_embed::RustEmbed;
-use shared::messages::{GcsToRpi, RpiToGcs, RpiToMcu};
+use shared::messages::{GcsToRpi, RobotState, RpiToGcs, RpiToMcu};
+use shared::rpc::RpcResponse;
+use std::sync::{Arc, RwLock};
 use tokio::sync::broadcast;
 
 const GCS_PORT: &str = "8080";
 
 type WsSendingQueueTx = broadcast::Sender<RpiToGcs>;
-type WsSendingQueueRx = broadcast::Receiver<RpiToGcs>;
 type McuSendingQueueTx = broadcast::Sender<RpiToMcu>;
 
 #[derive(RustEmbed)]
 #[folder = "../../gcs/dist/"]
 struct GcsAssets;
 
-pub async fn gcs_task(ws_sending_queue: WsSendingQueueTx, mcu_sending_queue: McuSendingQueueTx) {
+#[derive(Clone)]
+struct WsState {
+    ws_sending_queue: WsSendingQueueTx,
+    mcu_sending_queue: McuSendingQueueTx,
+    robot_state: Arc<RwLock<RobotState>>,
+}
+
+pub async fn gcs_task(
+    ws_sending_queue: WsSendingQueueTx,
+    mcu_sending_queue: McuSendingQueueTx,
+    robot_state: Arc<RwLock<RobotState>>,
+) {
     let app = Router::new()
         .route("/ws", any(ws_handler))
         .fallback(static_handler)
-        .with_state((ws_sending_queue, mcu_sending_queue));
+        .with_state(WsState {
+            ws_sending_queue,
+            mcu_sending_queue,
+            robot_state,
+        });
 
     let listener = loop {
         if let Ok(listener) = tokio::net::TcpListener::bind(format!("0.0.0.0:{GCS_PORT}")).await {
@@ -42,27 +58,31 @@ pub async fn gcs_task(ws_sending_queue: WsSendingQueueTx, mcu_sending_queue: Mcu
     axum::serve(listener, app).await.unwrap(); // This never panics
 }
 
-async fn ws_handler(
-    ws: WebSocketUpgrade,
-    State((sending_queue_tx, mcu_sending_queue)): State<(WsSendingQueueTx, McuSendingQueueTx)>,
-) -> impl IntoResponse {
-    let sending_queue_rx = sending_queue_tx.subscribe();
-    ws.on_upgrade(move |socket| handle_socket(socket, sending_queue_rx, mcu_sending_queue))
+async fn ws_handler(ws: WebSocketUpgrade, State(state): State<WsState>) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| {
+        handle_socket(
+            socket,
+            state.ws_sending_queue,
+            state.mcu_sending_queue,
+            state.robot_state,
+        )
+    })
 }
 
 async fn handle_socket(
     mut socket: WebSocket,
-    mut sending_queue: WsSendingQueueRx,
+    sending_queue_tx: WsSendingQueueTx,
     mcu_sending_queue: McuSendingQueueTx,
+    robot_state: Arc<RwLock<RobotState>>,
 ) {
     println!("GCS: Client connected via WebSocket");
+    let mut sending_queue_rx = sending_queue_tx.subscribe();
+
     loop {
         tokio::select! {
-            result = sending_queue.recv() => match result {
+            result = sending_queue_rx.recv() => match result {
                 Ok(message) => {
-                    if let Ok(bytes) = rmp_serde::to_vec_named(&message)
-                        && socket.send(WsMessage::Binary(bytes.into())).await.is_err()
-                    {
+                    if ws_send(&mut socket, &message).await.is_err() {
                         break; // Client disconnected
                     }
                 }
@@ -76,8 +96,16 @@ async fn handle_socket(
                     match rmp_serde::from_slice::<GcsToRpi>(&bytes) {
                         Ok(message) => {
                             match &message {
-                                GcsToRpi::Arm(_)
-                                | GcsToRpi::GetStateReq(_) => {}
+                                GcsToRpi::Arm(_) => {}
+                                GcsToRpi::GetStateReq(req) => {
+                                    let res = RpiToGcs::GetStateRes(RpcResponse::new(
+                                        req,
+                                        *robot_state.read().unwrap(),
+                                    ));
+                                    if ws_send(&mut socket, &res).await.is_err() {
+                                        break; // Client disconnected
+                                    }
+                                }
                             }
 
                             // If the message can be converted to RpiToMcu, forward it
@@ -96,6 +124,20 @@ async fn handle_socket(
         }
     }
     println!("GCS: Client disconnected");
+}
+
+#[derive(thiserror::Error, Debug)]
+enum WsError {
+    #[error("Failed to encode message: {0}")]
+    Encode(#[from] rmp_serde::encode::Error),
+    #[error("WebSocket error: {0}")]
+    Socket(#[from] axum::Error),
+}
+
+async fn ws_send(socket: &mut WebSocket, message: &RpiToGcs) -> Result<(), WsError> {
+    let bytes = rmp_serde::to_vec_named(message)?;
+    socket.send(WsMessage::Binary(bytes.into())).await?;
+    Ok(())
 }
 
 async fn static_handler(uri: Uri) -> impl IntoResponse {

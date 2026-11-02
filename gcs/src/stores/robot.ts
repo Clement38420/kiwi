@@ -64,12 +64,8 @@ export const useRobotStore = defineStore('robot', () => {
       return
     } else if ('LidarScan' in message) {
       lidarScan.value = message.LidarScan
-    } else if ('BatteryVoltage' in message) {
-      robotState.value.battery_voltage = message.BatteryVoltage
-    } else if ('BatteryLevel' in message) {
-      robotState.value.battery_level = message.BatteryLevel
-    } else if ('ArmState' in message) {
-      robotState.value.arm = message.ArmState
+    } else if ('RobotState' in message) {
+      robotState.value = message.RobotState
     } else {
       const _exhaustiveCheck: never = message
       return _exhaustiveCheck
