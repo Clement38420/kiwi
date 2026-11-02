@@ -1,11 +1,9 @@
 use crate::channels;
-use crate::channels::UART_TX;
 use embassy_stm32::adc::{Adc, AnyAdcChannel, SampleTime};
 use embassy_stm32::gpio::Output;
 use embassy_stm32::peripherals::ADC1;
 use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
 use embassy_sync::mutex::Mutex;
-use shared::messages;
 use shared::messages::BatteryLevel;
 
 const BATTERY_VOLTAGE_RATIO: f32 = 0.0365; // (3.3V / 1024 * 11.3)
@@ -77,11 +75,7 @@ pub async fn battery_monitoring_task(
 
         battery_level = compute_battery_level(battery_level, battery_raw_voltage);
         channels::update_battery_level(battery_level).await;
-        channels::update_battery_voltage(battery_voltage);
-
-        UART_TX
-            .send(messages::McuToRpi::BatteryVoltage(battery_voltage))
-            .await;
+        channels::update_battery_voltage(battery_voltage).await;
 
         ticker.next().await;
     }

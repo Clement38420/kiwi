@@ -26,8 +26,10 @@ fn update_watch<T: PartialEq + Copy, const N: usize>(
 const BATTERY_VOLTAGE_RECEIVERS: usize = 1;
 static BATTERY_VOLTAGE: Watch<ThreadModeRawMutex, f32, BATTERY_VOLTAGE_RECEIVERS> =
     Watch::new_with(0.0);
-pub fn update_battery_voltage(new_state: f32) {
-    update_watch(&BATTERY_VOLTAGE, new_state);
+pub async fn update_battery_voltage(new_state: f32) {
+    if update_watch(&BATTERY_VOLTAGE, new_state) {
+        UART_TX.send(McuToRpi::BatteryVoltage(new_state)).await;
+    }
 }
 pub fn subscribe_battery_voltage()
 -> watch::Receiver<'static, ThreadModeRawMutex, f32, BATTERY_VOLTAGE_RECEIVERS> {
