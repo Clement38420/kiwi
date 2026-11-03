@@ -6,6 +6,7 @@ import type { LidarPoint } from '@/bindings/LidarPoint.ts'
 import type { GcsToRpi } from '@/bindings/GcsToRpi.ts'
 import { createRpcClient } from '@/utils/rpc.ts'
 import type { RobotState } from '@/bindings/RobotState.ts'
+import type { RobotPose } from '@/bindings/RobotPose.ts'
 
 const RECONNECT_DELAY_MS = 2000
 
@@ -21,6 +22,7 @@ export const useRobotStore = defineStore('robot', () => {
     battery_level: 'Critical',
     arm: 'CannotArm',
   })
+  const robotPose = ref<RobotPose>({ x: 0, y: 0, theta: 0 })
 
   const rpc = createRpcClient(sendMessage)
 
@@ -66,6 +68,8 @@ export const useRobotStore = defineStore('robot', () => {
       lidarScan.value = message.LidarScan
     } else if ('RobotState' in message) {
       robotState.value = message.RobotState
+    } else if ('RobotPose' in message) {
+      robotPose.value = message.RobotPose
     } else {
       const _exhaustiveCheck: never = message
       return _exhaustiveCheck
@@ -85,5 +89,6 @@ export const useRobotStore = defineStore('robot', () => {
     sendMessage,
     isConnected,
     sendRequest,
+    robotPose,
   }
 })

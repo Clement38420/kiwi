@@ -17,7 +17,7 @@ const { zoom, ppu, upd, resetViewport } = useViewport(canvas, (ctx) => {
   })
 
   ctx.fillStyle = '#84cc16'
-  ctx.fillRect(-2, -2, 4, 4)
+  ctx.fillRect(-2 + robotStore.robotPose.x, -2 + robotStore.robotPose.y, 4, 4)
 })
 </script>
 

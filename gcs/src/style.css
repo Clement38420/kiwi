@@ -267,7 +267,7 @@
     @apply flex flex-col gap-2 py-2.5 first:pt-0 last:pb-0;
   }
   .tel-header {
-    @apply flex justify-between items-center gap-4;
+    @apply flex justify-between items-center gap-4 flex-wrap;
   }
   .tel-label {
     @apply text-ink-muted;

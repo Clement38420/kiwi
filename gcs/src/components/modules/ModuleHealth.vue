@@ -12,7 +12,7 @@ const BATTERY_MAX_VOLTAGE = 21.5
 
 interface Vital {
   label: string
-  value: string
+  value: string | { label: string; value: string }[]
   state?: State
   living?: boolean
   dot?: boolean
@@ -52,7 +52,19 @@ const batteryVital = computed<Vital>(() => ({
   ),
 }))
 
-const vitals = computed(() => [connectionVital.value, batteryVital.value])
+const poseVital = computed<Vital>(() => {
+  const pose = robotStore.robotPose
+  return {
+    label: 'Pose',
+    value: [
+      { label: 'X', value: `${pose.x.toFixed(3)} m` },
+      { label: 'Y', value: `${pose.y.toFixed(3)} m` },
+      { label: 'θ', value: `${((pose.theta * 180) / Math.PI).toFixed(2)}°` },
+    ],
+  }
+})
+
+const vitals = computed(() => [connectionVital.value, poseVital.value, batteryVital.value])
 </script>
 
 <template>
@@ -63,15 +75,25 @@ const vitals = computed(() => [connectionVital.value, batteryVital.value])
         <div v-for="vital in vitals" :key="vital.label" class="tel-row">
           <div class="tel-header">
             <span class="tel-label">{{ vital.label }}</span>
-            <span class="tel-value" :data-state="!vital.dot ? vital.state : undefined">
+            <div class="tel-value" :data-state="!vital.dot ? vital.state : undefined">
               <span
                 v-if="vital.dot"
                 class="state-dot"
                 :data-state="vital.state"
                 :data-living="vital.living || undefined"
               />
-              <span>{{ vital.value }}</span>
-            </span>
+              <div v-if="vital.value instanceof Array" class="flex gap-4 flex-wrap">
+                <div
+                  v-for="v in vital.value"
+                  :key="v.label"
+                  class="flex justify-between rounded-field bg-surface-2 gap-4 py-2 px-4"
+                >
+                  <div class="text-kiwi-text">{{ v.label }}</div>
+                  <div>{{ v.value }}</div>
+                </div>
+              </div>
+              <span v-else>{{ vital.value }}</span>
+            </div>
           </div>
           <BaseProgressBar
             v-if="vital.gauge !== undefined"
@@ -81,7 +103,7 @@ const vitals = computed(() => [connectionVital.value, batteryVital.value])
         </div>
       </div>
     </div>
-    <div class="grid grid-cols-4">
+    <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
       <button
         class="btn btn-semantic"
         :data-state="robotStore.robotState.arm === 'Armed' ? 'crit' : 'ok'"
@@ -90,6 +112,7 @@ const vitals = computed(() => [connectionVital.value, batteryVital.value])
       >
         {{ robotStore.robotState.arm === 'Armed' ? 'Disarm' : 'Arm' }}
       </button>
+      <button class="btn btn-secondary" @click="robotStore.sendMessage('Reset')">Reset</button>
     </div>
   </div>
 </template>

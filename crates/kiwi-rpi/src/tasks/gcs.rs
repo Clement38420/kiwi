@@ -9,10 +9,10 @@ use axum::{
     routing::any,
 };
 use rust_embed::RustEmbed;
-use shared::messages::{GcsToRpi, RobotState, RpiToGcs, RpiToMcu};
+use shared::messages::{GcsToRpi, RobotPose, RobotState, RpiToGcs, RpiToMcu};
 use shared::rpc::RpcResponse;
 use std::sync::{Arc, RwLock};
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, watch};
 
 const GCS_PORT: &str = "8080";
 
@@ -28,12 +28,14 @@ struct WsState {
     ws_sending_queue: WsSendingQueueTx,
     mcu_sending_queue: McuSendingQueueTx,
     robot_state: Arc<RwLock<RobotState>>,
+    robot_pose_tx: watch::Sender<RobotPose>,
 }
 
 pub async fn gcs_task(
     ws_sending_queue: WsSendingQueueTx,
     mcu_sending_queue: McuSendingQueueTx,
     robot_state: Arc<RwLock<RobotState>>,
+    robot_pose_tx: watch::Sender<RobotPose>,
 ) {
     let app = Router::new()
         .route("/ws", any(ws_handler))
@@ -42,6 +44,7 @@ pub async fn gcs_task(
             ws_sending_queue,
             mcu_sending_queue,
             robot_state,
+            robot_pose_tx,
         });
 
     let listener = loop {
@@ -65,6 +68,7 @@ async fn ws_handler(ws: WebSocketUpgrade, State(state): State<WsState>) -> impl 
             state.ws_sending_queue,
             state.mcu_sending_queue,
             state.robot_state,
+            state.robot_pose_tx,
         )
     })
 }
@@ -74,6 +78,7 @@ async fn handle_socket(
     sending_queue_tx: WsSendingQueueTx,
     mcu_sending_queue: McuSendingQueueTx,
     robot_state: Arc<RwLock<RobotState>>,
+    robot_pose_tx: watch::Sender<RobotPose>,
 ) {
     println!("GCS: Client connected via WebSocket");
     let mut sending_queue_rx = sending_queue_tx.subscribe();
@@ -105,6 +110,9 @@ async fn handle_socket(
                                     if ws_send(&mut socket, &res).await.is_err() {
                                         break; // Client disconnected
                                     }
+                                }
+                                GcsToRpi::Reset => {
+                                    let _ = robot_pose_tx.send(RobotPose::default());
                                 }
                             }
 

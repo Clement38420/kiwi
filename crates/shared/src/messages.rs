@@ -55,6 +55,15 @@ pub struct RobotState {
     pub mcu: McuState,
 }
 
+#[cfg(feature = "std")]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default)]
+#[cfg_attr(feature = "ts", derive(TS), ts(export))]
+pub struct RobotPose {
+    pub x: f32,
+    pub y: f32,
+    pub theta: f32,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum McuToRpi {
     BatteryVoltage(f32),
@@ -70,6 +79,7 @@ pub enum RpiToGcs {
     LidarScan(std::sync::Arc<Vec<LidarPoint>>),
     RobotState(RobotState),
     GetStateRes(RpcResponse<RobotState>),
+    RobotPose(RobotPose),
 }
 
 #[cfg(feature = "std")]
@@ -92,6 +102,7 @@ impl TryFrom<McuToRpi> for RpiToGcs {
 pub enum GcsToRpi {
     Arm(bool),
     GetStateReq(RpcRequest<()>),
+    Reset,
 }
 
 #[cfg(feature = "std")]
@@ -102,6 +113,7 @@ impl TryFrom<GcsToRpi> for RpiToMcu {
         match value {
             GcsToRpi::Arm(v) => Ok(RpiToMcu::Arm(v)),
             GcsToRpi::GetStateReq(_v) => Err(()),
+            GcsToRpi::Reset => Err(()),
         }
     }
 }
