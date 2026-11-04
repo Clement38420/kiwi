@@ -43,11 +43,11 @@ impl<'d, T: GeneralInstance4Channel> Motor<'d, T> {
         let speed = pwm.clamp(PWM_MIN, PWM_MAX);
 
         if speed > PWM_DEAD_ZONE {
-            self.direction_pin.set_high();
+            self.direction_pin.set_low();
             // Open-drain command, high (open-drain, default state) means the brake is not active
             self.brake_pin.set_high();
         } else if speed < -PWM_DEAD_ZONE {
-            self.direction_pin.set_low();
+            self.direction_pin.set_high();
             self.brake_pin.set_high();
         } else {
             self.brake_pin.set_low();
