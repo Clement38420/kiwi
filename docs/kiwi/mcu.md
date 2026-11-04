@@ -15,7 +15,7 @@ The codebase follows a strict 4-layer separation:
    - Instantiates drivers and returns a [`Board`](../../crates/kiwi-mcu/src/board.rs#L100-L110) struct whose fields are moved into their respective tasks.
 3. **[`drivers/`](../../crates/kiwi-mcu/src/drivers/)**:
    - Reusable hardware abstractions decoupled from application logic:
-     - [`blm3650.rs`](../../crates/kiwi-mcu/src/drivers/blm3650.rs): BLM3650 brushless motor driver (20 kHz PWM + Open-Drain `direction` and `brake` pins with `PWM_DEAD_ZONE = 0.08`).
+     - [`blm3650.rs`](../../crates/kiwi-mcu/src/drivers/blm3650.rs): BLM3650 brushless motor driver (20 kHz PWM + Open-Drain `direction` and `brake` pins with `PWM_DEAD_ZONE = 0.08`). Direction pin polarity: `set_low()` for positive speeds (> dead zone), `set_high()` for negative speeds (< -dead zone); brake pin is active-low (`set_low()` on stop).
      - [`one_channel_encoder.rs`](../../crates/kiwi-mcu/src/drivers/one_channel_encoder.rs): 32-bit Input Capture frequency measurement (`TIM2`) on falling edges with hardware input filtering and stall timeout detection (`max_period`).
 4. **[`tasks/`](../../crates/kiwi-mcu/src/tasks/) & [`channels.rs`](../../crates/kiwi-mcu/src/channels.rs)**:
    - Domain tasks (`battery_management`, `safety`, `wheels`, `uart`, `communication`) run cooperatively on the single-threaded Embassy executor (`executor-thread`).
