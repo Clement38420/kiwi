@@ -64,6 +64,47 @@ pub struct RobotPose {
     pub theta: f32,
 }
 
+#[cfg(feature = "std")]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default)]
+#[cfg_attr(feature = "ts", derive(TS), ts(export))]
+pub struct Twist {
+    pub vx: f32,
+    pub vy: f32,
+    pub w: f32,
+}
+
+#[cfg(feature = "std")]
+impl Twist {
+    pub fn to_wheel_speeds(&self) -> [f32; 3] {
+        let radius_inv = 1.0_f32 / WHEEL_RADIUS;
+
+        let rot = WHEEL_BASE * self.w;
+        let vx_comp = 3.0_f32.sqrt() / 2.0 * self.vx;
+        let vy_half = 0.5 * self.vy;
+
+        let mut speeds = [
+            radius_inv * (-self.vy + rot),
+            radius_inv * (vx_comp + vy_half + rot),
+            radius_inv * (-vx_comp + vy_half + rot),
+        ];
+
+        let max_speed = speeds
+            .iter()
+            .map(|s| s.abs())
+            .reduce(f32::max)
+            .unwrap_or(0.0);
+
+        if max_speed > MAX_WHEEL_SPEED {
+            let scale = MAX_WHEEL_SPEED / max_speed;
+            for s in &mut speeds {
+                *s *= scale;
+            }
+        }
+
+        speeds
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum McuToRpi {
     BatteryVoltage(f32),
@@ -103,6 +144,7 @@ pub enum GcsToRpi {
     Arm(bool),
     GetStateReq(RpcRequest<()>),
     Reset,
+    Twist(Twist),
 }
 
 #[cfg(feature = "std")]
@@ -112,8 +154,9 @@ impl TryFrom<GcsToRpi> for RpiToMcu {
     fn try_from(value: GcsToRpi) -> Result<Self, Self::Error> {
         match value {
             GcsToRpi::Arm(v) => Ok(RpiToMcu::Arm(v)),
-            GcsToRpi::GetStateReq(_v) => Err(()),
+            GcsToRpi::GetStateReq(_) => Err(()),
             GcsToRpi::Reset => Err(()),
+            GcsToRpi::Twist(_) => Err(()),
         }
     }
 }
@@ -167,6 +210,7 @@ pub enum EncodeError<T> {
     MessageTooLarge,
 }
 
+use crate::consts::{MAX_WHEEL_SPEED, WHEEL_BASE, WHEEL_RADIUS};
 #[cfg(feature = "std")]
 use crate::rpc::{RpcRequest, RpcResponse};
 #[cfg(not(feature = "std"))]

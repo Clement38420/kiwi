@@ -3,5 +3,6 @@
 pub mod messages;
 pub mod pid;
 
+pub mod consts;
 #[cfg(feature = "std")]
 pub mod rpc;

@@ -215,7 +215,7 @@
     @apply rounded-panel border p-4 relative w-fit h-fit;
   }
   .group:has(> .group-title) {
-    @apply mt-4;
+    @apply mt-8;
   }
   .group-title {
     @apply uppercase font-mono text-kiwi-text absolute left-0 -top-6.5 text-[0.8rem] tracking-widest font-medium;
@@ -264,7 +264,7 @@
     @apply divide-y divide-dashed font-mono;
   }
   .tel-row {
-    @apply flex flex-col gap-2 py-2.5 first:pt-0 last:pb-0;
+    @apply flex flex-col gap-3 py-3 first:pt-0 last:pb-0;
   }
   .tel-header {
     @apply flex justify-between items-center gap-4 flex-wrap;

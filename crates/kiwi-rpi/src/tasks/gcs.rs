@@ -114,6 +114,9 @@ async fn handle_socket(
                                 GcsToRpi::Reset => {
                                     let _ = robot_pose_tx.send(RobotPose::default());
                                 }
+                                GcsToRpi::Twist(t) => {
+                                    let _ = mcu_sending_queue.send(RpiToMcu::WheelSpeedSetpoints(t.to_wheel_speeds()));
+                                }
                             }
 
                             // If the message can be converted to RpiToMcu, forward it

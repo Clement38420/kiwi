@@ -68,7 +68,7 @@ const vitals = computed(() => [connectionVital.value, poseVital.value, batteryVi
 </script>
 
 <template>
-  <div class="group text-sm flex flex-col gap-4 w-full">
+  <div class="group text-sm flex flex-col gap-6 w-auto">
     <p class="group-title">Health</p>
     <div class="card w-full">
       <div class="tel-list">
@@ -86,7 +86,7 @@ const vitals = computed(() => [connectionVital.value, poseVital.value, batteryVi
                 <div
                   v-for="v in vital.value"
                   :key="v.label"
-                  class="flex justify-between rounded-field bg-surface-2 gap-4 py-2 px-4"
+                  class="flex justify-between rounded-field bg-surface-2 gap-4 py-2 px-4 border"
                 >
                   <div class="text-kiwi-text">{{ v.label }}</div>
                   <div>{{ v.value }}</div>
