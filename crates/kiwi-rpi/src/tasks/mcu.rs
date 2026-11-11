@@ -2,16 +2,15 @@ use crate::drivers;
 use messages::RpiToMcu;
 use shared::messages;
 use shared::messages::{McuToRpi, RobotState, RpiToGcs};
-use std::sync::{Arc, RwLock};
-use tokio::sync::broadcast;
 use tokio::sync::broadcast::error::RecvError;
+use tokio::sync::{broadcast, watch};
 
 const MCU_PORT: &str = "/dev/serial0";
 
 pub async fn mcu_task(
     sending_queue: broadcast::Sender<RpiToMcu>,
     gcs_tx: broadcast::Sender<RpiToGcs>,
-    robot_state: Arc<RwLock<RobotState>>,
+    robot_state_tx: watch::Sender<RobotState>,
 ) {
     let mut sending_queue = sending_queue.subscribe();
 
@@ -42,10 +41,10 @@ pub async fn mcu_task(
                 message = mcu.receive_message() => match message {
                     Ok(message) => {
                         match &message {
-                            McuToRpi::BatteryVoltage(v) => update_state(&robot_state, &gcs_tx, |s| s.mcu.battery_voltage = *v),
-                            McuToRpi::BatteryLevel(v) => update_state(&robot_state, &gcs_tx, |s| s.mcu.battery_level = *v),
-                            McuToRpi::ArmState(v) => update_state(&robot_state, &gcs_tx, |s| s.mcu.arm = *v),
-                            McuToRpi::McuState(v) => update_state(&robot_state, &gcs_tx, |s| s.mcu = *v),
+                            McuToRpi::BatteryVoltage(v) => robot_state_tx.send_modify(|s| s.mcu.battery_voltage = *v),
+                            McuToRpi::BatteryLevel(v) => robot_state_tx.send_modify(|s| s.mcu.battery_level = *v),
+                            McuToRpi::ArmState(v) => robot_state_tx.send_modify(|s| s.mcu.arm = *v),
+                            McuToRpi::McuState(v) => robot_state_tx.send_modify(|s| s.mcu = *v),
                         }
 
                         // If the message can be converted to RpiToGcs, forward it
@@ -78,14 +77,4 @@ pub async fn mcu_task(
             }
         }
     }
-}
-
-fn update_state(
-    robot_state: &RwLock<RobotState>,
-    gcs_tx: &broadcast::Sender<RpiToGcs>,
-    mutate: impl FnOnce(&mut RobotState),
-) {
-    let mut state = robot_state.write().unwrap();
-    mutate(&mut state);
-    let _ = gcs_tx.send(RpiToGcs::RobotState(*state));
 }

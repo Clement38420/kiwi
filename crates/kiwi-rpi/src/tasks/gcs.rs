@@ -11,7 +11,6 @@ use axum::{
 use rust_embed::RustEmbed;
 use shared::messages::{GcsToRpi, RobotPose, RobotState, RpiToGcs, RpiToMcu};
 use shared::rpc::RpcResponse;
-use std::sync::{Arc, RwLock};
 use tokio::sync::{broadcast, watch};
 
 const GCS_PORT: &str = "8080";
@@ -27,14 +26,14 @@ struct GcsAssets;
 struct WsState {
     ws_sending_queue: WsSendingQueueTx,
     mcu_sending_queue: McuSendingQueueTx,
-    robot_state: Arc<RwLock<RobotState>>,
+    robot_state_tx: watch::Sender<RobotState>,
     robot_pose_tx: watch::Sender<RobotPose>,
 }
 
 pub async fn gcs_task(
     ws_sending_queue: WsSendingQueueTx,
     mcu_sending_queue: McuSendingQueueTx,
-    robot_state: Arc<RwLock<RobotState>>,
+    robot_state_tx: watch::Sender<RobotState>,
     robot_pose_tx: watch::Sender<RobotPose>,
 ) {
     let app = Router::new()
@@ -43,7 +42,7 @@ pub async fn gcs_task(
         .with_state(WsState {
             ws_sending_queue,
             mcu_sending_queue,
-            robot_state,
+            robot_state_tx,
             robot_pose_tx,
         });
 
@@ -67,7 +66,7 @@ async fn ws_handler(ws: WebSocketUpgrade, State(state): State<WsState>) -> impl 
             socket,
             state.ws_sending_queue,
             state.mcu_sending_queue,
-            state.robot_state,
+            state.robot_state_tx,
             state.robot_pose_tx,
         )
     })
@@ -77,7 +76,7 @@ async fn handle_socket(
     mut socket: WebSocket,
     sending_queue_tx: WsSendingQueueTx,
     mcu_sending_queue: McuSendingQueueTx,
-    robot_state: Arc<RwLock<RobotState>>,
+    robot_state_tx: watch::Sender<RobotState>,
     robot_pose_tx: watch::Sender<RobotPose>,
 ) {
     println!("GCS: Client connected via WebSocket");
@@ -105,7 +104,7 @@ async fn handle_socket(
                                 GcsToRpi::GetStateReq(req) => {
                                     let res = RpiToGcs::GetStateRes(RpcResponse::new(
                                         req,
-                                        *robot_state.read().unwrap(),
+                                        robot_state_tx.subscribe().borrow().clone(),
                                     ));
                                     if ws_send(&mut socket, &res).await.is_err() {
                                         break; // Client disconnected

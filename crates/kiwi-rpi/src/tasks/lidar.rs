@@ -15,10 +15,7 @@ impl From<drivers::lidar::DataPoint> for LidarPoint {
     }
 }
 
-pub async fn lidar_task(
-    tx: watch::Sender<Arc<Vec<LidarPoint>>>,
-    gcs_tx: tokio::sync::broadcast::Sender<shared::messages::RpiToGcs>,
-) {
+pub async fn lidar_task(tx: watch::Sender<Arc<Vec<LidarPoint>>>) {
     loop {
         let mut lidar: drivers::lidar::Lidar = loop {
             let lidar_port_builder = tokio_serial::new(LIDAR_PORT, LIDAR_BAUD_RATE)
@@ -50,7 +47,6 @@ pub async fn lidar_task(
                     let scan: Arc<Vec<LidarPoint>> =
                         Arc::new(points.into_iter().map(Into::into).collect());
                     let _ = tx.send(scan.clone());
-                    let _ = gcs_tx.send(shared::messages::RpiToGcs::LidarScan(scan));
                 }
                 Err(e @ drivers::lidar::LidarError::CorruptPacket) => {
                     eprintln!("LIDAR: {e}");
