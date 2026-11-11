@@ -25,6 +25,7 @@ async fn main() {
         mcu_tx.clone(),
         gcs_tx.clone(),
         robot_state_tx.clone(),
+        robot_pose_tx.clone(),
     ));
     tokio::spawn(tasks::odometry::odometry_task(
         lidar_rx.clone(),

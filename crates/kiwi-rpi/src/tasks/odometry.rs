@@ -35,6 +35,7 @@ pub async fn odometry_task(
 ) {
     let _ = lidar_rx.changed().await;
     let mut prev_pc = preprocess_scan(&lidar_rx.borrow_and_update());
+    let mut prev_theta = robot_pose_tx.borrow().theta;
 
     let mut matches: Vec<Option<([f32; 2], f32)>> = Vec::new();
 
@@ -46,13 +47,23 @@ pub async fn odometry_task(
             continue;
         }
 
-        // Copied because it will be modified during ICP
+        let current_theta = robot_pose_tx.borrow().theta;
+        let dtheta_prior = (current_theta - prev_theta + PI).rem_euclid(2.0 * PI) - PI;
+        let (sin_prior, cos_prior) = dtheta_prior.sin_cos();
+
+        // Pre-rotate points using IMU gyro delta as motion prior
         let mut pc = raw_pc.clone();
+        for p in &mut pc {
+            let (x, y) = (p[0], p[1]);
+            p[0] = cos_prior * x - sin_prior * y;
+            p[1] = sin_prior * x + cos_prior * y;
+        }
+
         let prev_tree = KdSlice::sort_by_ordered_float(&mut prev_pc);
 
         let mut scan_dx = 0.0f32;
         let mut scan_dy = 0.0f32;
-        let mut scan_dtheta = 0.0f32;
+        let mut scan_dtheta = dtheta_prior;
 
         // ICP Loop
         for _ in 0..ICP_MAX_ITERATIONS {
@@ -142,13 +153,13 @@ pub async fn odometry_task(
             || scan_dtheta.abs() > MOVEMENT_R_THRESHOLD
         {
             robot_pose_tx.send_modify(|pose| {
-                pose.theta = (pose.theta + scan_dtheta + PI).rem_euclid(2.0 * PI) - PI;
                 let (sin, cos) = pose.theta.sin_cos();
                 pose.x += cos * scan_dx - sin * scan_dy;
                 pose.y += sin * scan_dx + cos * scan_dy;
             });
 
             prev_pc = raw_pc;
+            prev_theta = current_theta;
         }
     }
 }

@@ -14,16 +14,14 @@ use panic_probe as _;
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
-    let b = match board::Board::init() {
+    let b = match board::Board::init().await {
         Ok(board) => board,
-        Err(e) => match e {
-            board::BoardInitError::Uart(e) => {
-                panic!(
-                    "MAIN: Failed to initialize UART: {:?}",
-                    defmt::Debug2Format(&e)
-                );
-            }
-        },
+        Err(e) => {
+            panic!(
+                "MAIN: Board initialization error: {:?}",
+                defmt::Debug2Format(&e)
+            );
+        }
     };
     info!("Salut moi c'est la mcu de Kiwi!");
 
@@ -39,7 +37,9 @@ async fn main(spawner: Spawner) {
     spawner.spawn(tasks::safety::safety_task(b.pwr_cmd).unwrap());
     spawner.spawn(tasks::wheels::wheels_control_task(b.wheel_motors, b.wheel_encoders).unwrap());
     spawner.spawn(tasks::uart::uart_task(b.uart1).unwrap());
-    spawner.spawn(tasks::communication::message_dispatcher().unwrap());
+    spawner.spawn(tasks::communication::message_dispatcher_task().unwrap());
+    spawner.spawn(tasks::imu::imu_task(b.imu).unwrap());
+    spawner.spawn(tasks::imu::theta_telemetry_task().unwrap());
 
     loop {
         Timer::after(embassy_time::Duration::from_secs(1)).await;

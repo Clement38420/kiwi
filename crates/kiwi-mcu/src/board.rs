@@ -41,12 +41,25 @@
 //! | :--- | :--- | :--- |
 //! | `PB14` | `USART1_RX` | UART RX |
 //! | `PB15` | `USART1_TX` | UART TX |
+//!
+//! ## I2C (`I2C2`)
+//! 400 kHz I2C used for the IMU
+//!
+//! | Pin | Peripheral / Mode | Description |
+//! | :--- | :--- | :--- |
+//! | `PF0` | `I2C2_SDA` | I2C2 data |
+//! | `PF1` | `I2C2_SCL` | I2C2 clock |
 
 use crate::drivers;
+use embassy_stm32::i2c::Master;
+use embassy_stm32::mode::Async;
+use embassy_stm32::time::khz;
 use embassy_stm32::{
     Config,
     adc::{AdcChannel, AdcConfig, AnyAdcChannel, Resolution},
+    dma,
     gpio::{Level, Output, OutputType, Pull, Speed},
+    i2c,
     interrupt::typelevel::Handler,
     rcc::{
         AHBPrescaler, APBPrescaler, Hse, HseMode, Pll, PllMul, PllPDiv, PllPreDiv, PllSource,
@@ -82,6 +95,12 @@ static UART1_RX_BUFFER: ConstStaticCell<[u8; UART1_RX_BUFFER_SIZE]> =
 static UART1_TX_BUFFER: ConstStaticCell<[u8; UART1_TX_BUFFER_SIZE]> =
     ConstStaticCell::new([0; UART1_TX_BUFFER_SIZE]);
 
+static I2C2: OnceLock<Mutex<ThreadModeRawMutex, i2c::I2c<'static, Async, Master>>> =
+    OnceLock::new();
+const I2C2_FREQUENCY: Hertz = khz(400);
+
+const MPU6050_ADDRESS: u8 = 0x68;
+
 struct WheelEncodersIRQ;
 impl Handler<interrupt::typelevel::TIM2> for WheelEncodersIRQ {
     unsafe fn on_interrupt() {
@@ -105,15 +124,20 @@ pub struct Board {
     pub voltage_led_green: Output<'static>,
     pub voltage_sense: AnyAdcChannel<'static, peripherals::ADC1>,
     pub uart1: usart::BufferedUart<'static>,
+    pub _i2c2: &'static Mutex<ThreadModeRawMutex, i2c::I2c<'static, Async, Master>>,
+    pub imu: drivers::mpu6050::Mpu6050<'static>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum BoardInitError {
+    #[error("UART initialization error: {0:?}")]
     Uart(usart::ConfigError),
+    #[error("IMU initialization error: {0}")]
+    Imu(#[from] drivers::mpu6050::Error),
 }
 
 impl Board {
-    pub fn init() -> Result<Board, BoardInitError> {
+    pub async fn init() -> Result<Board, BoardInitError> {
         let mut config = Config::default();
         config.rcc.hsi = false;
         config.rcc.hse = Some(Hse {
@@ -139,6 +163,10 @@ impl Board {
             struct Irqs {
                 TIM2 => WheelEncodersIRQ;
                 USART1 => usart::BufferedInterruptHandler<peripherals::USART1>;
+                I2C2_EV => i2c::EventInterruptHandler<peripherals::I2C2>;
+                I2C2_ER => i2c::ErrorInterruptHandler<peripherals::I2C2>;
+                DMA1_STREAM7 => dma::InterruptHandler<peripherals::DMA1_CH7>;
+                DMA1_STREAM2 => dma::InterruptHandler<peripherals::DMA1_CH2>;
             }
         );
 
@@ -217,6 +245,18 @@ impl Board {
         )
         .map_err(BoardInitError::Uart)?;
 
+        let mut i2c2_cfg = i2c::Config::default();
+        i2c2_cfg.frequency = I2C2_FREQUENCY;
+
+        let i2c2 = I2C2.get_or_init(|| {
+            Mutex::new(i2c::I2c::new(
+                p.I2C2, p.PF1, p.PF0, p.DMA1_CH7, p.DMA1_CH2, Irqs, i2c2_cfg,
+            ))
+        });
+
+        let imu = drivers::mpu6050::Mpu6050::new(i2c2, MPU6050_ADDRESS);
+        imu.init().await?;
+
         Ok(Board {
             wheel_motors,
             wheel_encoders,
@@ -227,6 +267,8 @@ impl Board {
             voltage_led_green,
             voltage_sense: p.PC0.degrade_adc(),
             uart1,
+            _i2c2: i2c2,
+            imu,
         })
     }
 }

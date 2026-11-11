@@ -91,10 +91,19 @@ pub fn get_full_state() -> McuState {
     }
 }
 
+const THETA_RECEIVERS: usize = 1;
+pub static THETA: Watch<ThreadModeRawMutex, f32, THETA_RECEIVERS> = Watch::new_with(0.0);
+pub fn subscribe_theta() -> watch::Receiver<'static, ThreadModeRawMutex, f32, THETA_RECEIVERS> {
+    defmt::expect!(
+        THETA.receiver(),
+        "CHANNELS: No more theta receiver available."
+    )
+}
+
 pub static ARM_CMD: Signal<ThreadModeRawMutex, bool> = Signal::new();
 
-pub static UART_RX: Channel<ThreadModeRawMutex, RpiToMcu, 4> = Channel::new();
+pub static UART_RX: Channel<ThreadModeRawMutex, RpiToMcu, 16> = Channel::new();
 
-pub static UART_TX: Channel<ThreadModeRawMutex, McuToRpi, 4> = Channel::new();
+pub static UART_TX: Channel<ThreadModeRawMutex, McuToRpi, 16> = Channel::new();
 
 pub static WHEEL_SPEED_SETPOINTS: Signal<ThreadModeRawMutex, [f32; 3]> = Signal::new();

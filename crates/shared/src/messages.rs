@@ -76,9 +76,9 @@ pub struct Twist {
 #[cfg(feature = "std")]
 impl Twist {
     pub fn to_wheel_speeds(&self) -> [f32; 3] {
-        let radius_inv = 1.0_f32 / WHEEL_RADIUS;
+        let radius_inv = 1.0_f32 / crate::consts::WHEEL_RADIUS;
 
-        let rot = WHEEL_BASE * self.w;
+        let rot = crate::consts::WHEEL_BASE * self.w;
         let vx_comp = 3.0_f32.sqrt() / 2.0 * self.vx;
         let vy_half = 0.5 * self.vy;
 
@@ -94,8 +94,8 @@ impl Twist {
             .reduce(f32::max)
             .unwrap_or(0.0);
 
-        if max_speed > MAX_WHEEL_SPEED {
-            let scale = MAX_WHEEL_SPEED / max_speed;
+        if max_speed > crate::consts::MAX_WHEEL_SPEED {
+            let scale = crate::consts::MAX_WHEEL_SPEED / max_speed;
             for s in &mut speeds {
                 *s *= scale;
             }
@@ -111,6 +111,7 @@ pub enum McuToRpi {
     BatteryLevel(BatteryLevel),
     ArmState(ArmState),
     McuState(McuState),
+    Theta(f32),
 }
 
 #[cfg(feature = "std")]
@@ -132,7 +133,8 @@ impl TryFrom<McuToRpi> for RpiToGcs {
             McuToRpi::BatteryVoltage(_)
             | McuToRpi::BatteryLevel(_)
             | McuToRpi::ArmState(_)
-            | McuToRpi::McuState(_) => Err(()),
+            | McuToRpi::McuState(_)
+            | McuToRpi::Theta(_) => Err(()),
         }
     }
 }
@@ -155,7 +157,7 @@ impl TryFrom<GcsToRpi> for RpiToMcu {
         match value {
             GcsToRpi::Arm(v) => Ok(RpiToMcu::Arm(v)),
             GcsToRpi::GetStateReq(_) => Err(()),
-            GcsToRpi::Reset => Err(()),
+            GcsToRpi::Reset => Ok(RpiToMcu::Reset),
             GcsToRpi::Twist(_) => Err(()),
         }
     }
@@ -165,7 +167,8 @@ impl TryFrom<GcsToRpi> for RpiToMcu {
 pub enum RpiToMcu {
     WheelSpeedSetpoints([f32; 3]),
     Arm(bool),
-    SyncState,
+    Sync,
+    Reset,
 }
 
 const CRC: Crc<u16> = Crc::<u16>::new(&crc::CRC_16_MODBUS);
@@ -210,7 +213,6 @@ pub enum EncodeError<T> {
     MessageTooLarge,
 }
 
-use crate::consts::{MAX_WHEEL_SPEED, WHEEL_BASE, WHEEL_RADIUS};
 #[cfg(feature = "std")]
 use crate::rpc::{RpcRequest, RpcResponse};
 #[cfg(not(feature = "std"))]

@@ -1,7 +1,7 @@
 use crate::drivers;
 use messages::RpiToMcu;
 use shared::messages;
-use shared::messages::{McuToRpi, RobotState, RpiToGcs};
+use shared::messages::{McuToRpi, RobotPose, RobotState, RpiToGcs};
 use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::{broadcast, watch};
 
@@ -11,6 +11,7 @@ pub async fn mcu_task(
     sending_queue: broadcast::Sender<RpiToMcu>,
     gcs_tx: broadcast::Sender<RpiToGcs>,
     robot_state_tx: watch::Sender<RobotState>,
+    robot_pose_tx: watch::Sender<RobotPose>,
 ) {
     let mut sending_queue = sending_queue.subscribe();
 
@@ -24,7 +25,7 @@ pub async fn mcu_task(
 
             match drivers::mcu::Mcu::new(mcu_port_builder) {
                 Ok(mut mcu) => {
-                    let _ = mcu.send_message(&RpiToMcu::SyncState).await;
+                    let _ = mcu.send_message(&RpiToMcu::Sync).await;
                     break mcu;
                 }
                 Err(e) => {
@@ -45,6 +46,7 @@ pub async fn mcu_task(
                             McuToRpi::BatteryLevel(v) => robot_state_tx.send_modify(|s| s.mcu.battery_level = *v),
                             McuToRpi::ArmState(v) => robot_state_tx.send_modify(|s| s.mcu.arm = *v),
                             McuToRpi::McuState(v) => robot_state_tx.send_modify(|s| s.mcu = *v),
+                            McuToRpi::Theta(v) => robot_pose_tx.send_modify(|p| p.theta = *v),
                         }
 
                         // If the message can be converted to RpiToGcs, forward it

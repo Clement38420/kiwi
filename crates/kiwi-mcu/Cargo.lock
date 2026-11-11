@@ -705,6 +705,7 @@ dependencies = [
  "panic-probe",
  "shared",
  "static_cell",
+ "thiserror",
 ]
 
 [[package]]
