@@ -1,7 +1,7 @@
 use crate::drivers;
 use messages::RpiToMcu;
-use shared::messages;
-use shared::messages::{McuToRpi, RobotPose, RobotState, RpiToGcs};
+use shared::geometry::Pose2D;
+use shared::messages::{self, McuToRpi, RobotState, RpiToGcs};
 use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::{broadcast, watch};
 
@@ -11,7 +11,7 @@ pub async fn mcu_task(
     sending_queue: broadcast::Sender<RpiToMcu>,
     gcs_tx: broadcast::Sender<RpiToGcs>,
     robot_state_tx: watch::Sender<RobotState>,
-    odom_tx: watch::Sender<RobotPose>,
+    odom_tx: watch::Sender<Pose2D>,
     reset_tx: broadcast::Sender<()>,
 ) {
     let mut sending_queue = sending_queue.subscribe();
@@ -49,7 +49,7 @@ pub async fn mcu_task(
                             McuToRpi::McuState(v) => robot_state_tx.send_modify(|s| s.mcu = *v),
                             McuToRpi::Odom(v) => { odom_tx.send_replace(*v); },
                             McuToRpi::ResetAck => {
-                                odom_tx.send_replace(RobotPose::default());
+                                odom_tx.send_replace(Pose2D::default());
                                 let _ = reset_tx.send(());
                             },
                         }

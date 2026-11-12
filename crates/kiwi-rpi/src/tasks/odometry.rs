@@ -1,5 +1,6 @@
 use kd_tree::KdTree2;
-use shared::messages::{LidarPoint, RobotPose};
+use shared::geometry::{Point2D, PointPolar, Pose2D};
+use shared::messages::LidarPoint;
 use std::f32::consts::PI;
 use std::sync::Arc;
 use tokio::sync::watch::Sender;
@@ -12,28 +13,17 @@ const KEYFRAME_T_THRESHOLD: f32 = 0.15 * 0.15; // 15 cm
 const KEYFRAME_R_THRESHOLD: f32 = 0.35; // ~20 degrees
 const KEYFRAME_MATCHES_THRESHOLD: f32 = 0.6;
 
-pub trait LidarPointExt {
-    fn to_euclidean(&self) -> [f32; 2];
-}
-
-impl LidarPointExt for LidarPoint {
-    fn to_euclidean(&self) -> [f32; 2] {
-        let (s, c) = self.angle.sin_cos();
-        [c * self.distance, -s * self.distance]
-    }
-}
-
 fn preprocess_scan(scan: &[LidarPoint]) -> Vec<[f32; 2]> {
     scan.iter()
         .filter(|p| p.distance > 0.05 && p.distance < 16.0)
-        .map(LidarPointExt::to_euclidean)
+        .map(|p| Point2D::from(PointPolar::from(p)).into())
         .collect()
 }
 
 struct Keyframe {
     tree: KdTree2<[f32; 2]>,
-    pose: RobotPose,
-    odom: RobotPose,
+    pose: Pose2D,
+    odom: Pose2D,
 }
 
 struct IcpResult {
@@ -44,20 +34,16 @@ struct IcpResult {
 }
 
 impl Keyframe {
-    fn new(pc: Vec<[f32; 2]>, pose: RobotPose, odom: RobotPose) -> Self {
+    fn new(pc: Vec<[f32; 2]>, pose: Pose2D, odom: Pose2D) -> Self {
         let tree = KdTree2::build_by_ordered_float(pc);
-        Self {
-            tree,
-            pose,
-            odom,
-        }
+        Self { tree, pose, odom }
     }
 
     /// Aligns `raw_pc` against this keyframe using motion prior from `current_odom` and 2D ICP.
     fn align(
         &self,
         raw_pc: &[[f32; 2]],
-        current_odom: &RobotPose,
+        current_odom: &Pose2D,
         matches: &mut Vec<Option<([f32; 2], f32)>>,
     ) -> Option<IcpResult> {
         if raw_pc.len() < 10 || self.tree.len() < 10 {
@@ -196,8 +182,8 @@ impl Keyframe {
 
 pub async fn odometry_task(
     mut lidar_rx: watch::Receiver<Arc<Vec<LidarPoint>>>,
-    robot_pose_tx: Sender<RobotPose>,
-    mut odom_rx: watch::Receiver<RobotPose>,
+    robot_pose_tx: Sender<Pose2D>,
+    mut odom_rx: watch::Receiver<Pose2D>,
     mut reset_rx: broadcast::Receiver<()>,
 ) {
     let _ = lidar_rx.changed().await;
@@ -212,7 +198,7 @@ pub async fn odometry_task(
         let raw_pc = tokio::select! {
             result = reset_rx.recv() => {
                 if result.is_ok() {
-                    let zero_pose = RobotPose::default();
+                    let zero_pose = Pose2D::default();
                     let current_pc = preprocess_scan(&lidar_rx.borrow_and_update());
                     let _ = odom_rx.borrow_and_update();
                     keyframe = Keyframe::new(current_pc, zero_pose, zero_pose);
@@ -255,7 +241,7 @@ pub async fn odometry_task(
         });
 
         if keyframe.should_replace(&icp) {
-            let new_keyframe_pose = RobotPose {
+            let new_keyframe_pose = Pose2D {
                 x: world_x,
                 y: world_y,
                 theta: current_odom.theta,

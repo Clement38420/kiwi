@@ -106,10 +106,10 @@ High-frequency kinematic variables (`1 kHz`) do not use `update_watch` (which wo
 
 ### `uart.rs` & `communication.rs`
 - **`uart_task`**: Splits `USART1` into `tx` and `rx` and runs concurrently (`join`):
-  - `uart_rx_task`: Reads byte-by-byte until `0x00`, handles buffer overflows (`256` bytes), decodes the frame via `shared::messages::decode`, and pushes it to `UART_RX`.
-  - `uart_tx_task`: Waits for messages on `UART_TX`, encodes them via `shared::messages::encode`, and writes them to UART.
+  - `uart_rx_task`: Reads byte-by-byte until `0x00`, handles buffer overflows (`256` bytes), decodes the frame via `shared::codec::decode`, and pushes it to `UART_RX`.
+  - `uart_tx_task`: Waits for messages on `UART_TX`, encodes them via `shared::codec::encode`, and writes them to UART.
 - **`message_dispatcher_task`**: Sends an initial synchronization snapshot (`send_sync()`) at startup, then consumes `UART_RX`:
   - `RpiToMcu::WheelSpeedSetpoints(setpoints)` $\rightarrow$ `WHEEL_SPEED_SETPOINTS.signal(setpoints)`.
   - `RpiToMcu::Arm(arm)` $\rightarrow$ `ARM_CMD.signal(arm)`.
   - `RpiToMcu::Sync` $\rightarrow$ sends `McuToRpi::McuState(get_full_state())` and `McuToRpi::Odom(POSE)` on `UART_TX`.
-  - `RpiToMcu::Reset` $\rightarrow$ resets `POSE` to `RobotPose::default()` and sends both `McuToRpi::Odom(RobotPose::default())` and `McuToRpi::ResetAck` on `UART_TX` to synchronize the RPi LiDAR odometry reset.
+  - `RpiToMcu::Reset` $\rightarrow$ resets `POSE` to `Pose2D::default()` and sends both `McuToRpi::Odom(Pose2D::default())` and `McuToRpi::ResetAck` on `UART_TX` to synchronize the RPi LiDAR odometry reset.

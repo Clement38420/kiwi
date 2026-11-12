@@ -4,7 +4,7 @@ use defmt::error;
 use embassy_futures::join::join;
 use embassy_stm32::usart;
 use embedded_io_async::{Read, Write};
-use shared::messages;
+use shared::codec;
 
 #[embassy_executor::task]
 pub async fn uart_task(uart: usart::BufferedUart<'static>) {
@@ -32,7 +32,7 @@ async fn uart_rx_task(mut uart: usart::BufferedUartRx<'static>) {
                 error!("UART RX: Frame exceeded buffer size, discarding");
                 overflow = false;
             } else {
-                match messages::decode(&mut rx_buffer[..i]) {
+                match codec::decode(&mut rx_buffer[..i]) {
                     Ok(message) => {
                         if let Err(e) = UART_RX.try_send(message) {
                             error!(
@@ -67,7 +67,7 @@ async fn uart_tx_task(mut uart: usart::BufferedUartTx<'static>) {
         let mut computation_buffer = [0u8; UART1_TX_BUFFER_SIZE];
         let mut tx_buffer = [0u8; UART1_TX_BUFFER_SIZE];
 
-        match messages::encode(&message, &mut tx_buffer, &mut computation_buffer) {
+        match codec::encode(&message, &mut tx_buffer, &mut computation_buffer) {
             Ok(encoded_len) => {
                 if let Err(e) = uart.write_all(&tx_buffer[..encoded_len]).await {
                     error!(

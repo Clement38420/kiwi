@@ -63,7 +63,7 @@ impl Mcu {
         // Remove the trailing null byte (0x00) from the buffer
         buffer.pop();
 
-        shared::messages::decode(&mut buffer).map_err(|_| McuError::InvalidDataReceived)
+        shared::codec::decode(&mut buffer).map_err(|_| McuError::InvalidDataReceived)
     }
 
     /// Sends a message to the MCU over the serial port.
@@ -73,7 +73,7 @@ impl Mcu {
     /// Returns `McuError::EncodingError` if the message cannot be encoded into bytes.
     /// Returns `McuError::Serial` if there is an error with the serial port.
     pub async fn send_message(&mut self, message: &RpiToMcu) -> McuResult<()> {
-        match shared::messages::encode(message) {
+        match shared::codec::encode(message) {
             Ok(bytes) => {
                 self.port.write_all(&bytes).await?;
                 Ok(())

@@ -21,9 +21,9 @@ Kiwi uses a 3-tier distributed architecture connected by end-to-end strongly typ
 ## 2. Key Architectural Decisions
 
 ### End-to-End Type Continuity (Rust $\rightarrow$ TypeScript)
-All data structures and message enums are defined **once** in [`crates/shared/src/messages.rs`](../../crates/shared/src/messages.rs) and [`crates/shared/src/rpc.rs`](../../crates/shared/src/rpc.rs):
+All data structures and message enums are defined **once** in [`crates/shared/src/messages.rs`](../../crates/shared/src/messages.rs), [`crates/shared/src/geometry/`](../../crates/shared/src/geometry/mod.rs), and [`crates/shared/src/rpc.rs`](../../crates/shared/src/rpc.rs):
 1. **`kiwi-mcu`** depends on `shared` with default features disabled (`#![no_std]`).
-2. **`kiwi-rpi`** depends on `shared` with the `std` feature enabled (unlocking RPi $\leftrightarrow$ GCS messages that use heap allocations or `std` math like `Arc<Vec<LidarPoint>>` and `Twist`, as well as random ID generation for RPC requests).
+2. **`kiwi-rpi`** depends on `shared` with the `std` feature enabled (unlocking RPi $\leftrightarrow$ GCS messages that use heap allocations or `std` math like `Arc<Vec<LidarPoint>>` and `Twist::to_wheel_speeds()`, as well as random ID generation for RPC requests).
 3. **`gcs`** consumes TypeScript definitions automatically generated from `shared` via the `ts` feature (`ts-rs`) in [`gcs/src/bindings/`](../../gcs/src/bindings/).
 
 This guarantees at compile time that schema drift (missing fields, renamed enum variants) cannot happen between the microcontroller, the Raspberry Pi, and the Web UI.
@@ -41,14 +41,15 @@ The three Rust crates (`shared`, `kiwi-mcu`, `kiwi-rpi`) are **not** grouped int
 ### Feature Flags (`crates/shared/Cargo.toml`)
 - `default = []`: `no_std` mode. Exposes:
   - [`consts`](../../crates/shared/src/consts.rs): Physical constants (`WHEEL_RADIUS = 0.03` m, `WHEEL_BASE = 0.184` m, `MAX_WHEEL_SPEED = 25.0` rad/s).
-  - [`messages`](../../crates/shared/src/messages.rs): `McuToRpi` (including `Odom(RobotPose)` and `ResetAck`), `RpiToMcu` (`WheelSpeedSetpoints`, `Arm`, `Sync`, `Reset`), `McuState`, `RobotPose`, `BatteryLevel`, `ArmState`, `LidarPoint`, and static-buffer `&mut [u8]` `encode`/`decode` functions.
-  - [`rpc`](../../crates/shared/src/rpc.rs): `RpcRequest` and `RpcResponse`.
+  - [`geometry`](../../crates/shared/src/geometry/mod.rs): [`Pose2D`](../../crates/shared/src/geometry/pose.rs) (with `+`, `-`, `+=`, `-=`, unary `-` over values and references, and `wrap_angle` normalizing `theta` to $[-\pi, \pi)$), [`Point2D`](../../crates/shared/src/geometry/point.rs) (Cartesian operators and `[f32; 2]` conversions), [`PointPolar`](../../crates/shared/src/geometry/point.rs) (CCW polar coordinates), and [`Twist`](../../crates/shared/src/geometry/twist.rs).
+  - [`messages`](../../crates/shared/src/messages.rs): `McuToRpi` (including `Odom(Pose2D)` and `ResetAck`), `RpiToMcu` (`WheelSpeedSetpoints`, `Arm`, `Sync`, `Reset`), `McuState`, `BatteryLevel`, `ArmState`, and `LidarPoint` (with `From<LidarPoint> for PointPolar` converting clockwise sensor angles to CCW).
+  - [`codec`](../../crates/shared/src/codec.rs): Static-buffer `&mut [u8]` `encode` / `decode` functions (`COBS` + `CRC-16/MODBUS` + `postcard`).
   - [`pid`](../../crates/shared/src/pid.rs): `PIDController` (with `.update(...)` and `.reset()`).
-- `std`: Enables `std`, `RobotState` (flattening `McuState` via `#[serde(flatten)]`), `Twist` (`vx`, `vy`, `w` with `.to_wheel_speeds()` inverse holonomic kinematics and saturation scaling to `MAX_WHEEL_SPEED`), `RpiToGcs` (`LidarScan`, `RobotState`, `GetStateRes`, `RobotPose`), `GcsToRpi` (`Arm`, `GetStateReq`, `Reset`, `Twist`), `TryFrom<McuToRpi> for RpiToGcs` and `TryFrom<GcsToRpi> for RpiToMcu` conversions, `RpcRequest::new()` (using `rand`), and a `Vec<u8>`-returning `encode` function.
+- `std`: Enables `std`, `Point2D::norm`/`distance_to` and `PointPolar <-> Point2D` trigonometric conversions, `Twist::to_wheel_speeds()` (inverse holonomic kinematics and saturation scaling to `MAX_WHEEL_SPEED`), `RobotState` (flattening `McuState` via `#[serde(flatten)]`), `RpiToGcs` (`LidarScan`, `RobotState`, `GetStateRes`, `RobotPose(Pose2D)`), `GcsToRpi` (`Arm`, `GetStateReq`, `Reset`, `Twist`), `TryFrom<McuToRpi> for RpiToGcs` and `TryFrom<GcsToRpi> for RpiToMcu` conversions, `RpcRequest::new()` (using `rand`), and a `Vec<u8>`-returning `codec::encode` function.
 - `ts` (implies `std`): Enables `#[derive(TS)]` and `#[ts(export)]` from `ts-rs` to generate `.ts` binding files (with `#[ts(flatten)]` on `RobotState::mcu` so the GCS sees a flat `RobotState` structure).
 
 ### Serial Framing (`MCU <-> RPi`)
-Over the UART link (`115200` baud, 8N1), `McuToRpi` and `RpiToMcu` messages go through the following pipeline in [`shared::messages`](../../crates/shared/src/messages.rs):
+Over the UART link (`115200` baud, 8N1), `McuToRpi` and `RpiToMcu` messages go through the following pipeline in [`shared::codec`](../../crates/shared/src/codec.rs):
 1. **Compact binary serialization** using `postcard`.
 2. **Integrity check**: a `CRC-16/MODBUS` checksum (2 bytes, little-endian) is appended to the Postcard payload.
 3. **Zero-byte stuffing**: **COBS** (*Consistent Overhead Byte Stuffing*) encoding over `[payload + crc]`.

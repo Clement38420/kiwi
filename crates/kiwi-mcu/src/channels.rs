@@ -4,8 +4,8 @@ use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
 use embassy_sync::signal::Signal;
 use embassy_sync::watch::Watch;
 use embassy_sync::{channel, watch};
-use shared::messages::{ArmState, BatteryLevel, McuState, RobotPose};
-use shared::messages::{McuToRpi, RpiToMcu};
+use shared::geometry::Pose2D;
+use shared::messages::{ArmState, BatteryLevel, McuState, McuToRpi, RpiToMcu};
 
 fn update_watch<T: PartialEq + Copy, const N: usize>(
     watch: &Watch<ThreadModeRawMutex, T, N>,
@@ -107,13 +107,12 @@ pub fn get_wheel_speeds() -> [f32; 3] {
 }
 
 const POSE_RECEIVERS: usize = 1;
-pub static POSE: Watch<ThreadModeRawMutex, RobotPose, POSE_RECEIVERS> =
-    Watch::new_with(RobotPose {
-        x: 0.0,
-        y: 0.0,
-        theta: 0.0,
-    });
-pub fn subscribe_pose() -> watch::Receiver<'static, ThreadModeRawMutex, RobotPose, POSE_RECEIVERS> {
+pub static POSE: Watch<ThreadModeRawMutex, Pose2D, POSE_RECEIVERS> = Watch::new_with(Pose2D {
+    x: 0.0,
+    y: 0.0,
+    theta: 0.0,
+});
+pub fn subscribe_pose() -> watch::Receiver<'static, ThreadModeRawMutex, Pose2D, POSE_RECEIVERS> {
     defmt::expect!(
         POSE.receiver(),
         "CHANNELS: No more pose receiver available."

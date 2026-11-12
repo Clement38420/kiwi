@@ -14,8 +14,8 @@ Use this workflow when a persistent state or measurement on the MCU (e.g., tempe
 1. If introducing a new `struct` or `enum`, derive:
    `#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]` and `#[cfg_attr(feature = "ts", derive(TS), ts(export))]`.
    *(Note: `PartialEq` and `Copy` are required by the MCU's `update_watch` helper).*
-2. Add the field to [`McuState`](../../crates/shared/src/messages.rs#L31-L37) and its `Default` implementation (since `RobotState` flattens `McuState`, it will automatically appear at the top level of `RobotState` in TypeScript).
-3. Add the variant to [`McuToRpi`](../../crates/shared/src/messages.rs#L108-L115) and map it to `Err(())` in `impl TryFrom<McuToRpi> for RpiToGcs` (because `robot_state_tx` automatically triggers a full `RpiToGcs::RobotState` broadcast on the RPi).
+2. Add the field to [`McuState`](../../crates/shared/src/messages.rs#L48-L54) and its `Default` implementation (since `RobotState` flattens `McuState`, it will automatically appear at the top level of `RobotState` in TypeScript).
+3. Add the variant to [`McuToRpi`](../../crates/shared/src/messages.rs#L75-L83) and map it to `Err(())` in `impl TryFrom<McuToRpi> for RpiToGcs` (because `robot_state_tx` automatically triggers a full `RpiToGcs::RobotState` broadcast on the RPi).
 
 ### Step 2: Create the `Watch` in `crates/kiwi-mcu/src/channels.rs`
 1. Define the constant for the exact number of subscribed MCU tasks:
@@ -48,9 +48,9 @@ In the receive loop of [`mcu_task`](../../crates/kiwi-rpi/src/tasks/mcu.rs#L45-L
 Use this workflow to send an order without expecting a response (e.g., velocity setpoint, actuator toggle).
 
 ### Step 1: Declare the message in `crates/shared/src/messages.rs`
-1. Add the variant to [`RpiToMcu`](../../crates/shared/src/messages.rs#L168-L173).
+1. Add the variant to [`RpiToMcu`](../../crates/shared/src/messages.rs#L135-L141).
 2. If the command can be triggered from the Web UI:
-   - Also add the variant to [`GcsToRpi`](../../crates/shared/src/messages.rs#L146-L151).
+   - Also add the variant to [`GcsToRpi`](../../crates/shared/src/messages.rs#L111-L119).
    - Map the conversion in `impl TryFrom<GcsToRpi> for RpiToMcu`.
    - If the command is only sent by an algorithm running on the RPi (like `WheelSpeedSetpoints`, which is computed from `GcsToRpi::Twist`), only add it to `RpiToMcu`.
 

@@ -6,7 +6,7 @@ import type { LidarPoint } from '@/bindings/LidarPoint.ts'
 import type { GcsToRpi } from '@/bindings/GcsToRpi.ts'
 import { createRpcClient } from '@/utils/rpc.ts'
 import type { RobotState } from '@/bindings/RobotState.ts'
-import type { RobotPose } from '@/bindings/RobotPose.ts'
+import type { Pose2D } from '@/bindings/Pose2D.ts'
 
 const RECONNECT_DELAY_MS = 2000
 
@@ -22,7 +22,7 @@ export const useRobotStore = defineStore('robot', () => {
     battery_level: 'Critical',
     arm: 'CannotArm',
   })
-  const robotPose = ref<RobotPose>({ x: 0, y: 0, theta: 0 })
+  const robotPose = ref<Pose2D>({ x: 0, y: 0, theta: 0 })
 
   const rpc = createRpcClient(sendMessage)
 

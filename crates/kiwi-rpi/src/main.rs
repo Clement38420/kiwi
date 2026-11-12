@@ -1,7 +1,8 @@
 pub mod drivers;
 pub mod tasks;
 
-use shared::messages::{LidarPoint, RobotPose, RobotState};
+use shared::geometry::Pose2D;
+use shared::messages::{LidarPoint, RobotState};
 use std::sync::Arc;
 use tokio::signal::unix::{SignalKind, signal};
 use tokio::sync::{broadcast, watch};
@@ -11,9 +12,9 @@ async fn main() {
     let (gcs_tx, _) = broadcast::channel::<shared::messages::RpiToGcs>(64);
     let (mcu_tx, _) = broadcast::channel::<shared::messages::RpiToMcu>(64);
     let (lidar_tx, mut lidar_rx) = watch::channel(Arc::new(Vec::<LidarPoint>::new()));
-    let (robot_pose_tx, mut robot_pose_rx) = watch::channel(RobotPose::default());
+    let (robot_pose_tx, mut robot_pose_rx) = watch::channel(Pose2D::default());
     let (robot_state_tx, mut robot_state_rx) = watch::channel(RobotState::default());
-    let (odom_tx, odom_rx) = watch::channel(RobotPose::default());
+    let (odom_tx, odom_rx) = watch::channel(Pose2D::default());
     let (reset_tx, _) = broadcast::channel::<()>(16);
 
     tokio::spawn(tasks::lidar::lidar_task(lidar_tx));

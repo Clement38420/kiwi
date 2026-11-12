@@ -1,5 +1,6 @@
 use crate::channels::{ARM_CMD, POSE, UART_RX, UART_TX, WHEEL_SPEED_SETPOINTS, get_full_state};
-use shared::messages::{McuToRpi, RobotPose, RpiToMcu};
+use shared::geometry::Pose2D;
+use shared::messages::{McuToRpi, RpiToMcu};
 
 #[embassy_executor::task]
 pub async fn message_dispatcher_task() {
@@ -12,8 +13,8 @@ pub async fn message_dispatcher_task() {
             RpiToMcu::Arm(arm) => ARM_CMD.signal(arm),
             RpiToMcu::Sync => send_sync().await,
             RpiToMcu::Reset => {
-                POSE.sender().send(RobotPose::default());
-                UART_TX.send(McuToRpi::Odom(RobotPose::default())).await;
+                POSE.sender().send(Pose2D::default());
+                UART_TX.send(McuToRpi::Odom(Pose2D::default())).await;
                 UART_TX.send(McuToRpi::ResetAck).await;
             }
         }

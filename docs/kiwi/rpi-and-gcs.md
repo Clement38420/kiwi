@@ -32,14 +32,14 @@ Unlike the MCU which uses `static` variables (`no_std`), [
   Holds the latest full 360° LiDAR scan in shared memory (`Arc`) for local RPi tasks (`odometry_task`) without cloning
   the point vector. A dedicated forwarding task in `main.rs` listens to `lidar_rx.changed()` and broadcasts
   `RpiToGcs::LidarScan` to `gcs_tx`.
-- **`odom_tx` / `odom_rx` (`watch::channel(RobotPose::default())`)**:
+- **`odom_tx` / `odom_rx` (`watch::channel(Pose2D::default())`)**:
   Holds the latest 50 Hz wheel and IMU odometry pose (`McuToRpi::Odom`) received from the STM32. Consumed by
   `odometry_task` both for real-time 50 Hz heading (`theta`) updates and as the 2D motion prior for LiDAR scan matching.
 - **`reset_tx` (`broadcast::Sender<()>`, capacity 16)**:
   Internal synchronization channel triggered when the STM32 confirms a pose reset via `McuToRpi::ResetAck`. Ensures the
   RPi resets its LiDAR keyframe and `robot_pose_tx` only after the MCU has zeroed its own odometry.
-- **`robot_pose_tx` / `robot_pose_rx` (`watch::channel(RobotPose::default())`)**:
-  Holds the latest estimated 2D world pose (`RobotPose { x, y, theta }`). A dedicated forwarding task in `main.rs`
+- **`robot_pose_tx` / `robot_pose_rx` (`watch::channel(Pose2D::default())`)**:
+  Holds the latest estimated 2D world pose (`Pose2D { x, y, theta }`). A dedicated forwarding task in `main.rs`
   listens to `robot_pose_rx.changed()` and automatically broadcasts `RpiToGcs::RobotPose` to `gcs_tx`.
 
 ### Tasks and Drivers (`tasks/` & `drivers/`)
@@ -52,12 +52,12 @@ Unlike the MCU which uses `static` variables (`no_std`), [
       current `Odom`.
     - Runs a bidirectional `tokio::select!` loop:
         - **RX (`mcu.receive_message()`)**: Reads the serial stream up to `0x00` (`read_until(0x00)`), strips the
-          delimiter, and decodes via `shared::messages::decode`:
+          delimiter, and decodes via `shared::codec::decode`:
             - `BatteryVoltage`, `BatteryLevel`, `ArmState`, `McuState` mutate `robot_state_tx` via `send_modify`.
             - `Odom(v)` updates `odom_tx` via `send_replace`.
-            - `ResetAck` zeroes `odom_tx` (`RobotPose::default()`) and notifies `odometry_task` via `reset_tx.send(())`.
+            - `ResetAck` zeroes `odom_tx` (`Pose2D::default()`) and notifies `odometry_task` via `reset_tx.send(())`.
             - Any message convertible via `RpiToGcs::try_from(message)` is forwarded to `gcs_tx`.
-        - **TX (`sending_queue.recv()`)**: Encodes incoming `RpiToMcu` messages with `shared::messages::encode` and
+        - **TX (`sending_queue.recv()`)**: Encodes incoming `RpiToMcu` messages with `shared::codec::encode` and
           writes them to the serial port.
 
 2. **LiDAR Task ([`tasks/lidar.rs`](../../crates/kiwi-rpi/src/tasks/lidar.rs)) & Driver ([
@@ -76,8 +76,8 @@ Unlike the MCU which uses `static` variables (`no_std`), [
     - Fuses 360° LiDAR scans (`lidar_rx`, ~10 Hz) with MCU wheel + IMU odometry (`odom_rx`, 50 Hz) and reset events
       (`reset_rx`):
     - **Preprocessing (`preprocess_scan`)**: Filters valid range measurements ($0.05\,\text{m} < d < 16.0\,\text{m}$)
-      and projects polar coordinates into 2D Cartesian points in the robot's direct right-hand frame ($+X$ forward, $+Y$
-      left, $+Z$ up): $x = r \cos\theta, y = -r \sin\theta$ (accounting for the clockwise rotation of the LiDAR).
+      and converts each `LidarPoint` into a CCW `PointPolar` (`theta = -angle`) and then into a 2D Cartesian `Point2D`
+      in the robot's direct right-hand frame ($+X$ forward, $+Y$ left, $+Z$ up): $x = r \cos\theta_{\text{lidar}}, y = -r \sin\theta_{\text{lidar}}$.
     - **50 Hz Heading Propagation**: Whenever `odom_rx.changed()` fires between LiDAR scans, `robot_pose_tx` is updated
       immediately with `current_odom.theta` so the GCS receives low-latency 50 Hz orientation updates.
     - **Keyframe-Based 2D ICP (`Keyframe::align`)**:
@@ -102,7 +102,7 @@ Unlike the MCU which uses `static` variables (`no_std`), [
         - If ICP fails (`< 10` matched points) on a valid scan (`>= 10` points), re-anchors a new keyframe at the
           current pose to recover tracking automatically.
     - **Synchronized Reset**: On `reset_rx.recv()`, re-initializes the `Keyframe` with the current LiDAR scan at
-      `RobotPose::default()` and zeroes `robot_pose_tx`.
+      `Pose2D::default()` and zeroes `robot_pose_tx`.
 
 4. **GCS Task ([`tasks/gcs.rs`](../../crates/kiwi-rpi/src/tasks/gcs.rs))**:
     - **Axum** HTTP/WebSocket server listening on `0.0.0.0:8080` with shared `WsState` (`ws_sending_queue`,
@@ -147,7 +147,7 @@ Unlike the MCU which uses `static` variables (`no_std`), [
 - **Reactivity Optimization**:
     - `lidarScan` uses `shallowRef<LidarPoint[]>([])` instead of `ref()` to avoid deep reactive proxy overhead across
       hundreds of points on every LiDAR revolution.
-    - `robotPose` uses `ref<RobotPose>({ x: 0, y: 0, theta: 0 })`.
+    - `robotPose` uses `ref<Pose2D>({ x: 0, y: 0, theta: 0 })`.
 
 ### Key Components & Utilities
 
