@@ -13,6 +13,7 @@ async fn main() {
     let (lidar_tx, mut lidar_rx) = watch::channel(Arc::new(Vec::<LidarPoint>::new()));
     let (robot_pose_tx, mut robot_pose_rx) = watch::channel(RobotPose::default());
     let (robot_state_tx, mut robot_state_rx) = watch::channel(RobotState::default());
+    let (odom_tx, odom_rx) = watch::channel(RobotPose::default());
 
     tokio::spawn(tasks::lidar::lidar_task(lidar_tx));
     tokio::spawn(tasks::gcs::gcs_task(
@@ -25,11 +26,12 @@ async fn main() {
         mcu_tx.clone(),
         gcs_tx.clone(),
         robot_state_tx.clone(),
-        robot_pose_tx.clone(),
+        odom_tx.clone(),
     ));
     tokio::spawn(tasks::odometry::odometry_task(
         lidar_rx.clone(),
         robot_pose_tx.clone(),
+        odom_rx.clone(),
     ));
 
     let gcs_pose_tx = gcs_tx.clone();

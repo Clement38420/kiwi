@@ -1,7 +1,7 @@
-use crate::board;
 use crate::board::{WheelEncoders, WheelMotors};
 use crate::channels::WHEEL_SPEED_SETPOINTS;
 use crate::drivers::blm3650;
+use crate::{board, channels};
 use core::array;
 use embassy_time::Duration;
 use shared::pid::PIDController;
@@ -69,6 +69,8 @@ pub async fn wheels_control_task(mut wheel_motors: WheelMotors, mut wheel_encode
             }
         };
 
+        let mut current_speeds = [0.0f32; 3];
+
         for i in 0..3 {
             let encoder = &mut wheel_encoders[i];
             let pid = &mut pids[i];
@@ -82,6 +84,7 @@ pub async fn wheels_control_task(mut wheel_motors: WheelMotors, mut wheel_encode
                 * board::WHEEL_ENCODER_RADIANS_PER_TICK
                 * speed_sign(speeds[1], *cmd, SPEED_ZERO_CROSSING_THRESHOLD);
             let speed = speeds.iter().sum::<f32>() / SPEED_FILTER_WINDOW as f32;
+            current_speeds[i] = speed;
 
             *cmd = pid.update(
                 setpoint,
@@ -90,5 +93,7 @@ pub async fn wheels_control_task(mut wheel_motors: WheelMotors, mut wheel_encode
             );
             motor.set_pwm(*cmd);
         }
+
+        channels::WHEEL_SPEEDS.sender().send(current_speeds);
     }
 }

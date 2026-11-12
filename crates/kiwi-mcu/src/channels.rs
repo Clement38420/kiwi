@@ -4,7 +4,7 @@ use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
 use embassy_sync::signal::Signal;
 use embassy_sync::watch::Watch;
 use embassy_sync::{channel, watch};
-use shared::messages::{ArmState, BatteryLevel, McuState};
+use shared::messages::{ArmState, BatteryLevel, McuState, RobotPose};
 use shared::messages::{McuToRpi, RpiToMcu};
 
 fn update_watch<T: PartialEq + Copy, const N: usize>(
@@ -91,12 +91,28 @@ pub fn get_full_state() -> McuState {
     }
 }
 
-const THETA_RECEIVERS: usize = 1;
-pub static THETA: Watch<ThreadModeRawMutex, f32, THETA_RECEIVERS> = Watch::new_with(0.0);
-pub fn subscribe_theta() -> watch::Receiver<'static, ThreadModeRawMutex, f32, THETA_RECEIVERS> {
+const WHEEL_SPEEDS_RECEIVERS: usize = 1;
+pub static WHEEL_SPEEDS: Watch<ThreadModeRawMutex, [f32; 3], WHEEL_SPEEDS_RECEIVERS> =
+    Watch::new_with([0.0, 0.0, 0.0]);
+pub fn subscribe_wheel_speeds()
+-> watch::Receiver<'static, ThreadModeRawMutex, [f32; 3], WHEEL_SPEEDS_RECEIVERS> {
     defmt::expect!(
-        THETA.receiver(),
-        "CHANNELS: No more theta receiver available."
+        WHEEL_SPEEDS.receiver(),
+        "CHANNELS: No more wheel speeds receiver available."
+    )
+}
+
+const POSE_RECEIVERS: usize = 1;
+pub static POSE: Watch<ThreadModeRawMutex, RobotPose, POSE_RECEIVERS> =
+    Watch::new_with(RobotPose {
+        x: 0.0,
+        y: 0.0,
+        theta: 0.0,
+    });
+pub fn subscribe_pose() -> watch::Receiver<'static, ThreadModeRawMutex, RobotPose, POSE_RECEIVERS> {
+    defmt::expect!(
+        POSE.receiver(),
+        "CHANNELS: No more pose receiver available."
     )
 }
 

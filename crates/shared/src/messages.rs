@@ -55,7 +55,6 @@ pub struct RobotState {
     pub mcu: McuState,
 }
 
-#[cfg(feature = "std")]
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Default)]
 #[cfg_attr(feature = "ts", derive(TS), ts(export))]
 pub struct RobotPose {
@@ -111,7 +110,7 @@ pub enum McuToRpi {
     BatteryLevel(BatteryLevel),
     ArmState(ArmState),
     McuState(McuState),
-    Theta(f32),
+    Odom(RobotPose),
 }
 
 #[cfg(feature = "std")]
@@ -134,7 +133,7 @@ impl TryFrom<McuToRpi> for RpiToGcs {
             | McuToRpi::BatteryLevel(_)
             | McuToRpi::ArmState(_)
             | McuToRpi::McuState(_)
-            | McuToRpi::Theta(_) => Err(()),
+            | McuToRpi::Odom(_) => Err(()),
         }
     }
 }

@@ -32,10 +32,11 @@ fn preprocess_scan(scan: &[LidarPoint]) -> Vec<[f32; 2]> {
 pub async fn odometry_task(
     mut lidar_rx: watch::Receiver<Arc<Vec<LidarPoint>>>,
     robot_pose_tx: Sender<RobotPose>,
+    odom_rx: watch::Receiver<RobotPose>,
 ) {
     let _ = lidar_rx.changed().await;
     let mut prev_pc = preprocess_scan(&lidar_rx.borrow_and_update());
-    let mut prev_theta = robot_pose_tx.borrow().theta;
+    let mut prev_odom = *odom_rx.borrow();
 
     let mut matches: Vec<Option<([f32; 2], f32)>> = Vec::new();
 
@@ -47,22 +48,27 @@ pub async fn odometry_task(
             continue;
         }
 
-        let current_theta = robot_pose_tx.borrow().theta;
-        let dtheta_prior = (current_theta - prev_theta + PI).rem_euclid(2.0 * PI) - PI;
+        let current_odom = *odom_rx.borrow();
+        let dtheta_prior = (current_odom.theta - prev_odom.theta + PI).rem_euclid(2.0 * PI) - PI;
         let (sin_prior, cos_prior) = dtheta_prior.sin_cos();
+        let (sin_a, cos_a) = prev_odom.theta.sin_cos();
+        let dx_prior =
+            cos_a * (current_odom.x - prev_odom.x) + sin_a * (current_odom.y - prev_odom.y);
+        let dy_prior =
+            -sin_a * (current_odom.x - prev_odom.x) + cos_a * (current_odom.y - prev_odom.y);
 
-        // Pre-rotate points using IMU gyro delta as motion prior
+        // Pre-transform points using IMU gyro delta as motion prior
         let mut pc = raw_pc.clone();
         for p in &mut pc {
             let (x, y) = (p[0], p[1]);
-            p[0] = cos_prior * x - sin_prior * y;
-            p[1] = sin_prior * x + cos_prior * y;
+            p[0] = cos_prior * x - sin_prior * y + dx_prior;
+            p[1] = sin_prior * x + cos_prior * y + dy_prior;
         }
 
         let prev_tree = KdSlice::sort_by_ordered_float(&mut prev_pc);
 
-        let mut scan_dx = 0.0f32;
-        let mut scan_dy = 0.0f32;
+        let mut scan_dx = dx_prior;
+        let mut scan_dy = dy_prior;
         let mut scan_dtheta = dtheta_prior;
 
         // ICP Loop
@@ -156,10 +162,11 @@ pub async fn odometry_task(
                 let (sin, cos) = pose.theta.sin_cos();
                 pose.x += cos * scan_dx - sin * scan_dy;
                 pose.y += sin * scan_dx + cos * scan_dy;
+                pose.theta = current_odom.theta;
             });
 
             prev_pc = raw_pc;
-            prev_theta = current_theta;
+            prev_odom = current_odom;
         }
     }
 }
