@@ -49,6 +49,7 @@ pub async fn mcu_task(
                             McuToRpi::McuState(v) => robot_state_tx.send_modify(|s| s.mcu = *v),
                             McuToRpi::Odom(v) => { odom_tx.send_replace(*v); },
                             McuToRpi::ResetAck => {
+                                odom_tx.send_replace(RobotPose::default());
                                 let _ = reset_tx.send(());
                             },
                         }

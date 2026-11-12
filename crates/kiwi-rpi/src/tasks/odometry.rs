@@ -31,7 +31,6 @@ fn preprocess_scan(scan: &[LidarPoint]) -> Vec<[f32; 2]> {
 }
 
 struct Keyframe {
-    pc: Vec<[f32; 2]>,
     tree: KdTree2<[f32; 2]>,
     pose: RobotPose,
     odom: RobotPose,
@@ -46,9 +45,8 @@ struct IcpResult {
 
 impl Keyframe {
     fn new(pc: Vec<[f32; 2]>, pose: RobotPose, odom: RobotPose) -> Self {
-        let tree = KdTree2::build_by_ordered_float(pc.clone());
+        let tree = KdTree2::build_by_ordered_float(pc);
         Self {
-            pc,
             tree,
             pose,
             odom,
@@ -62,7 +60,7 @@ impl Keyframe {
         current_odom: &RobotPose,
         matches: &mut Vec<Option<([f32; 2], f32)>>,
     ) -> Option<IcpResult> {
-        if raw_pc.len() < 10 || self.pc.len() < 10 {
+        if raw_pc.len() < 10 || self.tree.len() < 10 {
             return None;
         }
 
@@ -192,14 +190,14 @@ impl Keyframe {
         let traveled_dist_sq = icp.dx * icp.dx + icp.dy * icp.dy;
         traveled_dist_sq > KEYFRAME_T_THRESHOLD
             || icp.dtheta.abs() > KEYFRAME_R_THRESHOLD
-            || (icp.matched_points as f32) < (self.pc.len() as f32 * KEYFRAME_MATCHES_THRESHOLD)
+            || (icp.matched_points as f32) < (self.tree.len() as f32 * KEYFRAME_MATCHES_THRESHOLD)
     }
 }
 
 pub async fn odometry_task(
     mut lidar_rx: watch::Receiver<Arc<Vec<LidarPoint>>>,
     robot_pose_tx: Sender<RobotPose>,
-    odom_rx: watch::Receiver<RobotPose>,
+    mut odom_rx: watch::Receiver<RobotPose>,
     mut reset_rx: broadcast::Receiver<()>,
 ) {
     let _ = lidar_rx.changed().await;
@@ -216,9 +214,17 @@ pub async fn odometry_task(
                 if result.is_ok() {
                     let zero_pose = RobotPose::default();
                     let current_pc = preprocess_scan(&lidar_rx.borrow_and_update());
+                    let _ = odom_rx.borrow_and_update();
                     keyframe = Keyframe::new(current_pc, zero_pose, zero_pose);
                     let _ = robot_pose_tx.send(zero_pose);
                 }
+                continue;
+            }
+            _ = odom_rx.changed() => {
+                let current_odom = *odom_rx.borrow_and_update();
+                robot_pose_tx.send_modify(|pose| {
+                    pose.theta = current_odom.theta;
+                });
                 continue;
             }
             _ = lidar_rx.changed() => {
@@ -228,6 +234,12 @@ pub async fn odometry_task(
 
         let current_odom = *odom_rx.borrow();
         let Some(icp) = keyframe.align(&raw_pc, &current_odom, &mut matches) else {
+            robot_pose_tx.send_modify(|pose| {
+                pose.theta = current_odom.theta;
+            });
+            if raw_pc.len() >= 10 {
+                keyframe = Keyframe::new(raw_pc, *robot_pose_tx.borrow(), current_odom);
+            }
             continue;
         };
 
