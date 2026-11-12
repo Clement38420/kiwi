@@ -40,7 +40,7 @@ async fn main(spawner: Spawner) {
     spawner.spawn(tasks::communication::message_dispatcher_task().unwrap());
     spawner.spawn(tasks::imu::imu_task(b.imu).unwrap());
     spawner.spawn(tasks::odometry::odometry_task().unwrap());
-    spawner.spawn(tasks::channels::send_pose_task().unwrap());
+    spawner.spawn(tasks::odometry::send_pose_task().unwrap());
 
     loop {
         Timer::after(embassy_time::Duration::from_secs(1)).await;

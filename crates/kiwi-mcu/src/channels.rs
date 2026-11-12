@@ -101,6 +101,10 @@ pub fn subscribe_wheel_speeds()
         "CHANNELS: No more wheel speeds receiver available."
     )
 }
+#[allow(clippy::missing_panics_doc)]
+pub fn get_wheel_speeds() -> [f32; 3] {
+    WHEEL_SPEEDS.try_get().unwrap() // WHEEL_SPEEDS is initialized with a value, so it is safe to unwrap
+}
 
 const POSE_RECEIVERS: usize = 1;
 pub static POSE: Watch<ThreadModeRawMutex, RobotPose, POSE_RECEIVERS> =
