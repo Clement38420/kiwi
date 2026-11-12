@@ -8,14 +8,14 @@ This document details the exact procedures for extending robot features across a
 
 Use this workflow when a persistent state or measurement on the MCU (e.g., temperature, actuator status, operating mode) must be:
 1. Stored in the RPi's `RobotState` digital twin and automatically pushed to the GCS whenever it changes.
-2. Retrieved immediately when the RPi connects to the MCU (`SyncState`) or when the GCS connects to the RPi (`GetState`).
+2. Retrieved immediately when the RPi connects to the MCU (`Sync`) or when the GCS connects to the RPi (`GetState`).
 
 ### Step 1: Declare the type and messages in `crates/shared/src/messages.rs`
 1. If introducing a new `struct` or `enum`, derive:
    `#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]` and `#[cfg_attr(feature = "ts", derive(TS), ts(export))]`.
    *(Note: `PartialEq` and `Copy` are required by the MCU's `update_watch` helper).*
-2. Add the field to [`McuState`](../../crates/shared/src/messages.rs#L31-L36) and its `Default` implementation (since `RobotState` flattens `McuState`, it will automatically appear at the top level of `RobotState` in TypeScript).
-3. Add the variant to [`McuToRpi`](../../crates/shared/src/messages.rs#L58-L63) and map it to `Err(())` in `impl TryFrom<McuToRpi> for RpiToGcs` (because `mcu_task` broadcasts the full `RpiToGcs::RobotState` instead of forwarding the raw MCU message).
+2. Add the field to [`McuState`](../../crates/shared/src/messages.rs#L31-L37) and its `Default` implementation (since `RobotState` flattens `McuState`, it will automatically appear at the top level of `RobotState` in TypeScript).
+3. Add the variant to [`McuToRpi`](../../crates/shared/src/messages.rs#L108-L115) and map it to `Err(())` in `impl TryFrom<McuToRpi> for RpiToGcs` (because `robot_state_tx` automatically triggers a full `RpiToGcs::RobotState` broadcast on the RPi).
 
 ### Step 2: Create the `Watch` in `crates/kiwi-mcu/src/channels.rs`
 1. Define the constant for the exact number of subscribed MCU tasks:
@@ -29,8 +29,8 @@ Use this workflow when a persistent state or measurement on the MCU (e.g., tempe
 4. In [`get_full_state()`](../../crates/kiwi-mcu/src/channels.rs#L86-L92), populate the new `McuState` field by calling `get_my_state()`.
 
 ### Step 3: Update `crates/kiwi-rpi/src/tasks/mcu.rs`
-In the receive loop of [`mcu_task`](../../crates/kiwi-rpi/src/tasks/mcu.rs#L44-L49), add the branch to update the RPi state twin and broadcast `RpiToGcs::RobotState`:
-`McuToRpi::MyState(v) => update_state(&robot_state, &gcs_tx, |s| s.mcu.my_state = *v),`
+In the receive loop of [`mcu_task`](../../crates/kiwi-rpi/src/tasks/mcu.rs#L45-L55), add the branch to mutate the RPi state `watch` channel (which automatically triggers the GCS forwarding task in `main.rs`):
+`McuToRpi::MyState(v) => robot_state_tx.send_modify(|s| s.mcu.my_state = *v),`
 
 ### Step 4: Regenerate TypeScript bindings and update `gcs`
 1. From `crates/shared/`, run:
@@ -48,21 +48,21 @@ In the receive loop of [`mcu_task`](../../crates/kiwi-rpi/src/tasks/mcu.rs#L44-L
 Use this workflow to send an order without expecting a response (e.g., velocity setpoint, actuator toggle).
 
 ### Step 1: Declare the message in `crates/shared/src/messages.rs`
-1. Add the variant to [`RpiToMcu`](../../crates/shared/src/messages.rs#L109-L113).
+1. Add the variant to [`RpiToMcu`](../../crates/shared/src/messages.rs#L168-L173).
 2. If the command can be triggered from the Web UI:
-   - Also add the variant to [`GcsToRpi`](../../crates/shared/src/messages.rs#L91-L94).
+   - Also add the variant to [`GcsToRpi`](../../crates/shared/src/messages.rs#L146-L151).
    - Map the conversion in `impl TryFrom<GcsToRpi> for RpiToMcu`.
-   - If the command is only sent by an algorithm running on the RPi (like `WheelSpeedSetpoints`), only add it to `RpiToMcu`.
+   - If the command is only sent by an algorithm running on the RPi (like `WheelSpeedSetpoints`, which is computed from `GcsToRpi::Twist`), only add it to `RpiToMcu`.
 
 ### Step 2: Create the synchronization primitive in `crates/kiwi-mcu/src/channels.rs`
 - **If only the latest value matters** (e.g., speed setpoint, state toggle): declare `pub static MY_CMD: Signal<ThreadModeRawMutex, MyType> = Signal::new();`.
 - **If every command must be processed sequentially without loss**: declare `pub static MY_CMD: Channel<ThreadModeRawMutex, MyType, N> = Channel::new();`.
 
 ### Step 3: Route the command in `crates/kiwi-mcu/src/tasks/communication.rs`
-In [`message_dispatcher`](../../crates/kiwi-mcu/src/tasks/communication.rs#L9-L18), add `RpiToMcu::MyCmd(val)` to the `match` statement and call `MY_CMD.signal(val)` (or `MY_CMD.send(val).await`).
+In [`message_dispatcher_task`](../../crates/kiwi-mcu/src/tasks/communication.rs#L5-L21), add `RpiToMcu::MyCmd(val)` to the `match` statement and call `MY_CMD.signal(val)` (or `MY_CMD.send(val).await`).
 
 ### Step 4: Handle on RPi and GCS (if exposed to GCS)
-1. In [`crates/kiwi-rpi/src/tasks/gcs.rs`](../../crates/kiwi-rpi/src/tasks/gcs.rs#L99-L110), add `GcsToRpi::MyCmd(_)` to `match &message`. `RpiToMcu::try_from(message)` will automatically forward it to `mcu_sending_queue`.
+1. In [`crates/kiwi-rpi/src/tasks/gcs.rs`](../../crates/kiwi-rpi/src/tasks/gcs.rs#L94-L115), add `GcsToRpi::MyCmd(_)` to `match &message`. `RpiToMcu::try_from(message)` will automatically forward it to `mcu_sending_queue`.
 2. Regenerate TS bindings (`./generate_types.sh` in `crates/shared/`).
 3. Call `robotStore.sendMessage({ MyCmd: value })` from a Vue component.
 
@@ -84,7 +84,7 @@ For an RPC named `<Action>` taking `ReqPayload` (use `()` if no argument) and re
    - Also add `<Action>Res(RpcResponse<ResPayload>)` to `McuToRpi` + its conversion in `TryFrom<McuToRpi> for RpiToGcs`.
 
 ### Step 2: Implement the handler
-- **On the RPi** (in [`crates/kiwi-rpi/src/tasks/gcs.rs`](../../crates/kiwi-rpi/src/tasks/gcs.rs#L101-L108)):
+- **On the RPi** (in [`crates/kiwi-rpi/src/tasks/gcs.rs`](../../crates/kiwi-rpi/src/tasks/gcs.rs#L96-L104)):
   Match `GcsToRpi::<Action>Req(req)` and send the response directly to the requesting client's WebSocket:
   `let res = RpiToGcs::<Action>Res(RpcResponse::new(req, payload));`
   `if ws_send(&mut socket, &res).await.is_err() { break; }`
@@ -101,7 +101,7 @@ For an RPC named `<Action>` taking `ReqPayload` (use `()` if no argument) and re
 
 ## 4. Add a Hardware Peripheral on the STM32 (`kiwi-mcu`)
 
-1. **Check the pinout** in [`docs/kiwi/hardware.md`](hardware.md) and in the vendor manuals (`docs/ST/um-stm32-nucleo144.pdf` and `docs/ST/rm-stm32f76xxx.pdf`) to avoid pin, DMA, or timer conflicts (`TIM2`, `TIM3`, `TIM12`, `ADC1`, `USART1` are already in use).
+1. **Check the pinout** in [`docs/kiwi/hardware.md`](hardware.md) and in the vendor manuals (`docs/ST/um-stm32-nucleo144.pdf` and `docs/ST/rm-stm32f76xxx.pdf`) to avoid pin, DMA, or timer conflicts (`TIM2`, `TIM3`, `TIM12`, `ADC1`, `USART1`, `I2C2`, `DMA1_CH2`, `DMA1_CH7` are already in use).
 2. **Create a driver** in `crates/kiwi-mcu/src/drivers/` if it is a reusable hardware abstraction. Drivers must not hardcode specific pins; they should accept generic or pre-configured HAL peripheral instances.
 3. **Instantiate in [`crates/kiwi-mcu/src/board.rs`](../../crates/kiwi-mcu/src/board.rs)**:
    - Update the module-level pinout table in `board.rs`.

@@ -10,10 +10,10 @@ Kiwi uses a 3-tier distributed architecture connected by end-to-end strongly typ
 |  STM32F767ZI (no_std) |   Postcard + CRC16-MODBUS + COBS   |  Raspberry Pi 4 (std) |             MessagePack             |   Vue 3 + TypeScript  |
 +-----------------------+          ( 0x00 delimiter )        +-----------------------+           ( named binary )          +-----------------------+
   - 3x BLM3650 Motors                                          - LiDAR (/dev/ttyUSB0)                                        - Pinia Store (robot)
-  - 3x TIM2 Encoders                                           - LiDAR Odometry (2D ICP)                                     - Typed RPC Client
-  - ADC1 Battery Monitoring                                    - MCU Bridge (/dev/serial0)                                   - Canvas LiDAR Map
-  - Power Safety (pwr_cmd)                                     - Axum HTTP/WS Server                                         - Pose & Health Display
-                                                               - Embedded Web Assets (rust-embed)
+  - 3x TIM2 Encoders                                           - Keyframe LiDAR Odometry (2D ICP)                            - Typed RPC Client
+  - MPU-6050 IMU (I2C2)                                        - MCU Bridge (/dev/serial0)                                   - Canvas LiDAR Map
+  - Wheel & Heading Odometry                                   - Axum HTTP/WS Server                                         - Virtual Joystick & Slider
+  - ADC1 Battery & Power Safety                                - Embedded Web Assets (rust-embed)                            - Pose & Health Display
 ```
 
 ---
@@ -23,7 +23,7 @@ Kiwi uses a 3-tier distributed architecture connected by end-to-end strongly typ
 ### End-to-End Type Continuity (Rust $\rightarrow$ TypeScript)
 All data structures and message enums are defined **once** in [`crates/shared/src/messages.rs`](../../crates/shared/src/messages.rs) and [`crates/shared/src/rpc.rs`](../../crates/shared/src/rpc.rs):
 1. **`kiwi-mcu`** depends on `shared` with default features disabled (`#![no_std]`).
-2. **`kiwi-rpi`** depends on `shared` with the `std` feature enabled (unlocking RPi $\leftrightarrow$ GCS messages that use heap allocations like `Arc<Vec<LidarPoint>>`, `RobotPose`, as well as random ID generation for RPC requests).
+2. **`kiwi-rpi`** depends on `shared` with the `std` feature enabled (unlocking RPi $\leftrightarrow$ GCS messages that use heap allocations or `std` math like `Arc<Vec<LidarPoint>>` and `Twist`, as well as random ID generation for RPC requests).
 3. **`gcs`** consumes TypeScript definitions automatically generated from `shared` via the `ts` feature (`ts-rs`) in [`gcs/src/bindings/`](../../gcs/src/bindings/).
 
 This guarantees at compile time that schema drift (missing fields, renamed enum variants) cannot happen between the microcontroller, the Raspberry Pi, and the Web UI.
@@ -39,8 +39,12 @@ The three Rust crates (`shared`, `kiwi-mcu`, `kiwi-rpi`) are **not** grouped int
 ## 3. The `shared` Crate
 
 ### Feature Flags (`crates/shared/Cargo.toml`)
-- `default = []`: `no_std` mode. Exposes `McuToRpi`, `RpiToMcu`, `McuState`, `BatteryLevel`, `ArmState`, `LidarPoint`, `RpcRequest`, `RpcResponse`, `PIDController`, and static-buffer `&mut [u8]` `encode`/`decode` functions.
-- `std`: Enables `std`, `RobotState` (flattening `McuState` via `#[serde(flatten)]`), `RobotPose`, `RpiToGcs` (including `RobotPose` and `LidarScan`), `GcsToRpi` (including `Reset`), `TryFrom<McuToRpi> for RpiToGcs` and `TryFrom<GcsToRpi> for RpiToMcu` conversions, `RpcRequest::new()` (using `rand`), and a `Vec<u8>`-returning `encode` function.
+- `default = []`: `no_std` mode. Exposes:
+  - [`consts`](../../crates/shared/src/consts.rs): Physical constants (`WHEEL_RADIUS = 0.03` m, `WHEEL_BASE = 0.184` m, `MAX_WHEEL_SPEED = 25.0` rad/s).
+  - [`messages`](../../crates/shared/src/messages.rs): `McuToRpi` (including `Odom(RobotPose)` and `ResetAck`), `RpiToMcu` (`WheelSpeedSetpoints`, `Arm`, `Sync`, `Reset`), `McuState`, `RobotPose`, `BatteryLevel`, `ArmState`, `LidarPoint`, and static-buffer `&mut [u8]` `encode`/`decode` functions.
+  - [`rpc`](../../crates/shared/src/rpc.rs): `RpcRequest` and `RpcResponse`.
+  - [`pid`](../../crates/shared/src/pid.rs): `PIDController` (with `.update(...)` and `.reset()`).
+- `std`: Enables `std`, `RobotState` (flattening `McuState` via `#[serde(flatten)]`), `Twist` (`vx`, `vy`, `w` with `.to_wheel_speeds()` inverse holonomic kinematics and saturation scaling to `MAX_WHEEL_SPEED`), `RpiToGcs` (`LidarScan`, `RobotState`, `GetStateRes`, `RobotPose`), `GcsToRpi` (`Arm`, `GetStateReq`, `Reset`, `Twist`), `TryFrom<McuToRpi> for RpiToGcs` and `TryFrom<GcsToRpi> for RpiToMcu` conversions, `RpcRequest::new()` (using `rand`), and a `Vec<u8>`-returning `encode` function.
 - `ts` (implies `std`): Enables `#[derive(TS)]` and `#[ts(export)]` from `ts-rs` to generate `.ts` binding files (with `#[ts(flatten)]` on `RobotState::mcu` so the GCS sees a flat `RobotState` structure).
 
 ### Serial Framing (`MCU <-> RPi`)
@@ -56,7 +60,7 @@ On reception (`decode`), the receiver reads bytes up to `0x00` (excluded), perfo
 Over the WebSocket connection (`/ws` on port `8080`), `RpiToGcs` and `GcsToRpi` messages are serialized as **named MessagePack**:
 - Rust side (`kiwi-rpi`): `rmp_serde::to_vec_named` and `rmp_serde::from_slice`.
 - TypeScript side (`gcs`): `encode` and `decode` from `@msgpack/msgpack`.
-- Using named serialization (`to_vec_named`) produces objects matching the JSON/TypeScript representation generated by `serde` and `ts-rs` (e.g., `{ "Arm": true }`, `"Reset"`, `{ "RobotPose": { "x": 0.12, "y": -0.05, "theta": 0.45 } }`, or `{ "RobotState": { "battery_voltage": 19.8, "battery_level": "High", "arm": "Disarmed" } }`).
+- Using named serialization (`to_vec_named`) produces objects matching the JSON/TypeScript representation generated by `serde` and `ts-rs` (e.g., `{ "Arm": true }`, `"Reset"`, `{ "Twist": { "vx": 0.5, "vy": 0.0, "w": 0.0 } }`, `{ "RobotPose": { "x": 0.12, "y": -0.05, "theta": 0.45 } }`, or `{ "RobotState": { "battery_voltage": 19.8, "battery_level": "High", "arm": "Disarmed" } }`).
 
 ### RPC System (`shared::rpc` & `gcs/src/utils/rpc.ts`)
 The project implements an asynchronous request/response mechanism on top of unidirectional message streams:

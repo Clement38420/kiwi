@@ -10,10 +10,10 @@ its own compilation target, linker, and deployment runner):
 
 | Package    | Path                                   | Target                                        | Role                                                                                                                                                |
 |:-----------|:---------------------------------------|:----------------------------------------------|:----------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Shared** | [`crates/shared/`](crates/shared/)     | `no_std` / `std` / `ts`                       | Communication protocol, shared types, RPC primitives, COBS+CRC16 framing, PID controller.                                                           |
-| **MCU**    | [`crates/kiwi-mcu/`](crates/kiwi-mcu/) | `thumbv7em-none-eabihf` (STM32F767ZI)         | Real-time firmware (`embassy` in `no_std`): 3-wheel closed-loop control, battery management, power safety, UART link.                               |
-| **RPi**    | [`crates/kiwi-rpi/`](crates/kiwi-rpi/) | `aarch64-unknown-linux-gnu` (Raspberry Pi 4B) | Compute unit (`tokio`): LiDAR acquisition, 2D LiDAR odometry (ICP scan matching), MCU serial bridge, HTTP/WebSocket server (`axum` + `rust-embed`). |
-| **GCS**    | [`gcs/`](gcs/)                         | Web Browser (Vue 3 / TypeScript)              | Ground Control Station: real-time telemetry, pose display, LiDAR map, commands, and RPC requests over WebSocket (MessagePack).                      |
+| **Shared** | [`crates/shared/`](crates/shared/)     | `no_std` / `std` / `ts`                       | Communication protocol, shared types, holonomic kinematics (`Twist`), physical constants (`consts`), RPC primitives, COBS+CRC16 framing, PID.       |
+| **MCU**    | [`crates/kiwi-mcu/`](crates/kiwi-mcu/) | `thumbv7em-none-eabihf` (STM32F767ZI)         | Real-time firmware (`embassy` in `no_std`): 3-wheel closed-loop control, MPU-6050 IMU & wheel odometry, battery management, power safety, UART.     |
+| **RPi**    | [`crates/kiwi-rpi/`](crates/kiwi-rpi/) | `aarch64-unknown-linux-gnu` (Raspberry Pi 4B) | Compute unit (`tokio`): LiDAR acquisition, keyframe-based 2D ICP LiDAR-inertial odometry, MCU serial bridge, HTTP/WebSocket server (`axum`).        |
+| **GCS**    | [`gcs/`](gcs/)                         | Web Browser (Vue 3 / TypeScript)              | Ground Control Station: real-time telemetry, pose display, LiDAR map, virtual joystick & angular slider (`Twist`), and RPC over WebSocket.         |
 
 ## Documentation
 

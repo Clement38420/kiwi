@@ -19,6 +19,7 @@ This document gathers all hardware specifications directly tied to the embedded 
 | **`TIM2`** | Encoder Input Capture | 32-bit timer clocked at `1 MHz` (`1 µs` per tick), hardware filter `FDTS_DIV8_N8` (~593 ns cutoff at 108 MHz timer clock), falling-edge interrupt. |
 | **`ADC1`** | Battery Voltage Sense | `10-bit` resolution ($0\dots 1023$), `SampleTime::CYCLES144`, 32-sample averaging. |
 | **`USART1`** | RPi Serial Link | `115200` baud, 8N1, interrupt-driven (`BufferedUart` with 256-byte RX/TX buffers). |
+| **`I2C2`** | MPU-6050 IMU (`0x68`) | `400 kHz` Fast Mode, asynchronous master with DMA (`DMA1_CH7` TX / `DMA1_CH2` RX). |
 
 ---
 
@@ -66,10 +67,21 @@ Input capture on falling edge, `Pull::None` (external pull-up resistors).
 | **`PB14`** | `USART1_RX` | UART RX from Raspberry Pi |
 | **`PB15`** | `USART1_TX` | UART TX to Raspberry Pi |
 
+### Inertial Measurement Unit (`I2C2`)
+| Pin | Peripheral / Mode | Function |
+| :--- | :--- | :--- |
+| **`PF0`** | `I2C2_SDA` | I2C2 data line to MPU-6050 (`0x68`) |
+| **`PF1`** | `I2C2_SCL` | I2C2 clock line (`400 kHz`) |
+
 ---
 
-## 3. Motor & Closed-Loop Control Specifications
+## 3. Kinematics, Motor & Closed-Loop Control Specifications
 
+- **Chassis & Wheel Geometry ([`crates/shared/src/consts.rs`](../../crates/shared/src/consts.rs))**:
+  - 3 omni-wheels spaced at $120^\circ$ around the chassis center.
+  - Wheel radius: `WHEEL_RADIUS = 0.03` m ($30\text{ mm}$).
+  - Distance from robot center to each wheel contact point: `WHEEL_BASE = 0.184` m ($184\text{ mm}$).
+  - Maximum wheel angular velocity saturation limit: `MAX_WHEEL_SPEED = 25.0` rad/s.
 - **Motor Model**: **BLM3650** brushless motor with integrated ESC.
 - **PWM Dead Zone**: `PWM_DEAD_ZONE = 0.08` (below 8% duty cycle magnitude, the active brake pin is pulled low).
 - **Encoders & Gear Ratio**:
