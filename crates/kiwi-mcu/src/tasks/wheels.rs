@@ -4,6 +4,7 @@ use crate::drivers::blm3650;
 use crate::{board, channels};
 use core::array;
 use embassy_time::Duration;
+use shared::messages::ArmState;
 use shared::pid::PIDController;
 
 const KP: f32 = 0.04;
@@ -53,6 +54,19 @@ pub async fn wheels_control_task(mut wheel_motors: WheelMotors, mut wheel_encode
     let mut ticker = embassy_time::Ticker::every(WHEELS_CONTROL_TASK_DT);
     loop {
         ticker.next().await;
+
+        if channels::get_arm_state() != ArmState::Armed {
+            let _ = get_wheel_speed_setpoints();
+            setpoints = [0.0f32; 3];
+            cmds = [0.0f32; 3];
+            speeds = [[0.0f32; SPEED_FILTER_WINDOW]; 3];
+            for i in 0..3 {
+                pids[i].reset();
+                wheel_motors[i].set_pwm(0.0);
+            }
+            channels::WHEEL_SPEEDS.sender().send([0.0f32; 3]);
+            continue;
+        }
 
         setpoints = match get_wheel_speed_setpoints() {
             Some(sp) => {

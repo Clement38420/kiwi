@@ -12,6 +12,7 @@ pub async fn mcu_task(
     gcs_tx: broadcast::Sender<RpiToGcs>,
     robot_state_tx: watch::Sender<RobotState>,
     odom_tx: watch::Sender<RobotPose>,
+    reset_tx: broadcast::Sender<()>,
 ) {
     let mut sending_queue = sending_queue.subscribe();
 
@@ -47,6 +48,9 @@ pub async fn mcu_task(
                             McuToRpi::ArmState(v) => robot_state_tx.send_modify(|s| s.mcu.arm = *v),
                             McuToRpi::McuState(v) => robot_state_tx.send_modify(|s| s.mcu = *v),
                             McuToRpi::Odom(v) => { odom_tx.send_replace(*v); },
+                            McuToRpi::ResetAck => {
+                                let _ = reset_tx.send(());
+                            },
                         }
 
                         // If the message can be converted to RpiToGcs, forward it

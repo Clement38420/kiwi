@@ -14,24 +14,26 @@ async fn main() {
     let (robot_pose_tx, mut robot_pose_rx) = watch::channel(RobotPose::default());
     let (robot_state_tx, mut robot_state_rx) = watch::channel(RobotState::default());
     let (odom_tx, odom_rx) = watch::channel(RobotPose::default());
+    let (reset_tx, _) = broadcast::channel::<()>(16);
 
     tokio::spawn(tasks::lidar::lidar_task(lidar_tx));
     tokio::spawn(tasks::gcs::gcs_task(
         gcs_tx.clone(),
         mcu_tx.clone(),
         robot_state_tx.clone(),
-        robot_pose_tx.clone(),
     ));
     tokio::spawn(tasks::mcu::mcu_task(
         mcu_tx.clone(),
         gcs_tx.clone(),
         robot_state_tx.clone(),
         odom_tx.clone(),
+        reset_tx.clone(),
     ));
     tokio::spawn(tasks::odometry::odometry_task(
         lidar_rx.clone(),
         robot_pose_tx.clone(),
         odom_rx.clone(),
+        reset_tx.subscribe(),
     ));
 
     let gcs_pose_tx = gcs_tx.clone();

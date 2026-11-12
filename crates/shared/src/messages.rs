@@ -111,6 +111,7 @@ pub enum McuToRpi {
     ArmState(ArmState),
     McuState(McuState),
     Odom(RobotPose),
+    ResetAck,
 }
 
 #[cfg(feature = "std")]
@@ -133,7 +134,8 @@ impl TryFrom<McuToRpi> for RpiToGcs {
             | McuToRpi::BatteryLevel(_)
             | McuToRpi::ArmState(_)
             | McuToRpi::McuState(_)
-            | McuToRpi::Odom(_) => Err(()),
+            | McuToRpi::Odom(_)
+            | McuToRpi::ResetAck => Err(()),
         }
     }
 }

@@ -13,6 +13,8 @@ pub async fn message_dispatcher_task() {
             RpiToMcu::Sync => send_sync().await,
             RpiToMcu::Reset => {
                 POSE.sender().send(RobotPose::default());
+                UART_TX.send(McuToRpi::Odom(RobotPose::default())).await;
+                UART_TX.send(McuToRpi::ResetAck).await;
             }
         }
     }

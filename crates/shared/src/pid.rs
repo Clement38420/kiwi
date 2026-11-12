@@ -57,4 +57,9 @@ impl PIDController {
 
         (p + self.integral + d + ff).clamp(self.cmd_bounds.0, self.cmd_bounds.1)
     }
+
+    pub fn reset(&mut self) {
+        self.integral = 0.0;
+        self.prev_error = 0.0;
+    }
 }

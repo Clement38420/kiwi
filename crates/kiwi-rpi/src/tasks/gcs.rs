@@ -9,14 +9,11 @@ use axum::{
     routing::any,
 };
 use rust_embed::RustEmbed;
-use shared::messages::{GcsToRpi, RobotPose, RobotState, RpiToGcs, RpiToMcu};
+use shared::messages::{GcsToRpi, RobotState, RpiToGcs, RpiToMcu};
 use shared::rpc::RpcResponse;
 use tokio::sync::{broadcast, watch};
 
 const GCS_PORT: &str = "8080";
-
-type WsSendingQueueTx = broadcast::Sender<RpiToGcs>;
-type McuSendingQueueTx = broadcast::Sender<RpiToMcu>;
 
 #[derive(RustEmbed)]
 #[folder = "../../gcs/dist/"]
@@ -24,17 +21,15 @@ struct GcsAssets;
 
 #[derive(Clone)]
 struct WsState {
-    ws_sending_queue: WsSendingQueueTx,
-    mcu_sending_queue: McuSendingQueueTx,
+    ws_sending_queue: broadcast::Sender<RpiToGcs>,
+    mcu_sending_queue: broadcast::Sender<RpiToMcu>,
     robot_state_tx: watch::Sender<RobotState>,
-    robot_pose_tx: watch::Sender<RobotPose>,
 }
 
 pub async fn gcs_task(
-    ws_sending_queue: WsSendingQueueTx,
-    mcu_sending_queue: McuSendingQueueTx,
+    ws_sending_queue: broadcast::Sender<RpiToGcs>,
+    mcu_sending_queue: broadcast::Sender<RpiToMcu>,
     robot_state_tx: watch::Sender<RobotState>,
-    robot_pose_tx: watch::Sender<RobotPose>,
 ) {
     let app = Router::new()
         .route("/ws", any(ws_handler))
@@ -43,7 +38,6 @@ pub async fn gcs_task(
             ws_sending_queue,
             mcu_sending_queue,
             robot_state_tx,
-            robot_pose_tx,
         });
 
     let listener = loop {
@@ -67,17 +61,15 @@ async fn ws_handler(ws: WebSocketUpgrade, State(state): State<WsState>) -> impl 
             state.ws_sending_queue,
             state.mcu_sending_queue,
             state.robot_state_tx,
-            state.robot_pose_tx,
         )
     })
 }
 
 async fn handle_socket(
     mut socket: WebSocket,
-    sending_queue_tx: WsSendingQueueTx,
-    mcu_sending_queue: McuSendingQueueTx,
+    sending_queue_tx: broadcast::Sender<RpiToGcs>,
+    mcu_sending_queue: broadcast::Sender<RpiToMcu>,
     robot_state_tx: watch::Sender<RobotState>,
-    robot_pose_tx: watch::Sender<RobotPose>,
 ) {
     println!("GCS: Client connected via WebSocket");
     let mut sending_queue_rx = sending_queue_tx.subscribe();
@@ -110,9 +102,7 @@ async fn handle_socket(
                                         break; // Client disconnected
                                     }
                                 }
-                                GcsToRpi::Reset => {
-                                    let _ = robot_pose_tx.send(RobotPose::default());
-                                }
+                                GcsToRpi::Reset => {}
                                 GcsToRpi::Twist(t) => {
                                     let _ = mcu_sending_queue.send(RpiToMcu::WheelSpeedSetpoints(t.to_wheel_speeds()));
                                 }
