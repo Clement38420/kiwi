@@ -57,7 +57,7 @@ impl<'a> Mpu6050<'a> {
     }
 
     /// Computes and stores the Z-axis gyroscope zero-rate bias (in rad/s) by averaging
-    /// `samples` measurements (defaults to `200` if `None`, sampled every 2 ms).
+    /// `samples` measurements (defaults to `500` if `None`, sampled every 2 ms).
     ///
     /// # Errors
     /// Can return an error if the I2C write operation fails.

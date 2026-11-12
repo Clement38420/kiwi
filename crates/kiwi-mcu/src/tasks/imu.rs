@@ -6,9 +6,13 @@ use embassy_time::{Duration, Instant};
 
 #[embassy_executor::task]
 pub async fn imu_task(mut imu: drivers::mpu6050::Mpu6050<'static>) {
+    info!("Starting IMU calibration...");
     loop {
         match imu.calibrate(None).await {
-            Ok(()) => break,
+            Ok(()) => {
+                info!("IMU calibrated successfully");
+                break;
+            }
             Err(e) => {
                 info!(
                     "Error calibrating IMU: {:?}, retrying in 1 second...",

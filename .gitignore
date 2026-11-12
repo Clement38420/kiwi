@@ -13,3 +13,8 @@ crates/*/target
 .gemini
 .agents
 skills
+
+# PYTHON
+__pycache__/
+*.pyc
+*.pyo
