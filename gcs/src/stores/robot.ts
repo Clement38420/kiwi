@@ -21,6 +21,7 @@ export const useRobotStore = defineStore('robot', () => {
     battery_voltage: 0,
     battery_level: 'Critical',
     arm: 'CannotArm',
+    mode: 'Manual',
   })
   const robotPose = ref<Pose2D>({ x: 0, y: 0, theta: 0 })
 

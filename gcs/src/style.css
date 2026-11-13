@@ -178,6 +178,10 @@
   background-position: center;
 }
 
+@utility disabled-control {
+  @apply pointer-events-none touch-none select-none grayscale opacity-50 transition duration-150 ease-kiwi;
+}
+
 @layer components {
   .logo-mark {
     --tri: url(#kiwi-grad);

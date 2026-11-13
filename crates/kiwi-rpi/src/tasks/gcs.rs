@@ -84,7 +84,11 @@ async fn handle_socket(mut socket: WebSocket, comm: Communication, base: Base) {
                                 }
                                 GcsToRpi::Reset => {}
                                 GcsToRpi::Twist(t) => {
+                                    if base.state.borrow().mode != ControlMode::Manual {continue;}
                                     let _ = comm.mcu.send(RpiToMcu::WheelSpeedSetpoints(t.to_wheel_speeds()));
+                                }
+                                GcsToRpi::Mode(m) => {
+                                    base.state.send_modify(|s| s.mode = *m);
                                 }
                             }
 

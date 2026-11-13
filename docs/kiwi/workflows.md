@@ -15,7 +15,7 @@ Use this workflow when a persistent state or measurement on the MCU (e.g., tempe
    `#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]` and `#[cfg_attr(feature = "ts", derive(TS), ts(export))]`.
    *(Note: `PartialEq` and `Copy` are required by the MCU's `update_watch` helper).*
 2. Add the field to [`McuState`](../../crates/shared/src/messages.rs#L48-L54) and its `Default` implementation (since `RobotState` flattens `McuState`, it will automatically appear at the top level of `RobotState` in TypeScript).
-3. Add the variant to [`McuToRpi`](../../crates/shared/src/messages.rs#L75-L83) and map it to `Err(())` in `impl TryFrom<McuToRpi> for RpiToGcs` (because `robot_state_tx` automatically triggers a full `RpiToGcs::RobotState` broadcast on the RPi).
+3. Add the variant to [`McuToRpi`](../../crates/shared/src/messages.rs#L75-L83) and map it to `Err(())` in `impl TryFrom<McuToRpi> for RpiToGcs` (because `base.state` automatically triggers a full `RpiToGcs::RobotState` broadcast on the RPi via `gcs_relay_task`).
 
 ### Step 2: Create the `Watch` in `crates/kiwi-mcu/src/channels.rs`
 1. Define the constant for the exact number of subscribed MCU tasks:
@@ -29,8 +29,8 @@ Use this workflow when a persistent state or measurement on the MCU (e.g., tempe
 4. In [`get_full_state()`](../../crates/kiwi-mcu/src/channels.rs#L86-L92), populate the new `McuState` field by calling `get_my_state()`.
 
 ### Step 3: Update `crates/kiwi-rpi/src/tasks/mcu.rs`
-In the receive loop of [`mcu_task`](../../crates/kiwi-rpi/src/tasks/mcu.rs#L45-L55), add the branch to mutate the RPi state `watch` channel (which automatically triggers the GCS forwarding task in `main.rs`):
-`McuToRpi::MyState(v) => robot_state_tx.send_modify(|s| s.mcu.my_state = *v),`
+In the receive loop of [`mcu_task`](../../crates/kiwi-rpi/src/tasks/mcu.rs#L39-L50), add the branch to mutate the RPi state `watch` channel (which automatically triggers `gcs_relay_task`):
+`McuToRpi::MyState(v) => base.state.send_modify(|s| s.mcu.my_state = *v),`
 
 ### Step 4: Regenerate TypeScript bindings and update `gcs`
 1. From `crates/shared/`, run:
@@ -62,7 +62,7 @@ Use this workflow to send an order without expecting a response (e.g., velocity 
 In [`message_dispatcher_task`](../../crates/kiwi-mcu/src/tasks/communication.rs#L5-L21), add `RpiToMcu::MyCmd(val)` to the `match` statement and call `MY_CMD.signal(val)` (or `MY_CMD.send(val).await`).
 
 ### Step 4: Handle on RPi and GCS (if exposed to GCS)
-1. In [`crates/kiwi-rpi/src/tasks/gcs.rs`](../../crates/kiwi-rpi/src/tasks/gcs.rs#L94-L115), add `GcsToRpi::MyCmd(_)` to `match &message`. `RpiToMcu::try_from(message)` will automatically forward it to `mcu_sending_queue`.
+1. In [`crates/kiwi-rpi/src/tasks/gcs.rs`](../../crates/kiwi-rpi/src/tasks/gcs.rs#L74-L98), add `GcsToRpi::MyCmd(_)` to `match &message`. `RpiToMcu::try_from(message)` will automatically forward it to `comm.mcu`.
 2. Regenerate TS bindings (`./generate_types.sh` in `crates/shared/`).
 3. Call `robotStore.sendMessage({ MyCmd: value })` from a Vue component.
 

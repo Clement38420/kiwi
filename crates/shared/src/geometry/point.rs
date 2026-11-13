@@ -38,6 +38,16 @@ impl Point2D {
     pub fn distance_to(self, other: Self) -> f32 {
         (self - other).norm()
     }
+
+    #[cfg(feature = "std")]
+    /// Rotates the point counter-clockwise by `angle` radians around the origin.
+    pub fn rotated(self, angle: f32) -> Self {
+        let (sin, cos) = angle.sin_cos();
+        Self {
+            x: self.x * cos - self.y * sin,
+            y: self.x * sin + self.y * cos,
+        }
+    }
 }
 
 impl PointPolar {
@@ -167,5 +177,29 @@ impl Neg for Point2D {
 
     fn neg(self) -> Point2D {
         -&self
+    }
+}
+
+#[cfg(all(test, feature = "std"))]
+mod tests {
+    use super::*;
+    use crate::geometry::Twist;
+    use core::f32::consts::FRAC_PI_2;
+
+    #[test]
+    fn rotated_world_to_body_frame() {
+        let p = Point2D::new(1.0, 0.0).rotated(-FRAC_PI_2);
+        assert!(p.x.abs() < 1e-5);
+        assert!((p.y - (-1.0)).abs() < 1e-5);
+
+        let twist = Twist {
+            vx: 0.0,
+            vy: 2.0,
+            w: 0.5,
+        }
+        .rotated(-FRAC_PI_2);
+        assert!((twist.vx - 2.0).abs() < 1e-5);
+        assert!(twist.vy.abs() < 1e-5);
+        assert!((twist.w - 0.5).abs() < 1e-5);
     }
 }

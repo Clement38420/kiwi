@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import type { BatteryLevel } from '@/bindings/BatteryLevel.ts'
+import type { ControlMode } from '@/bindings/ControlMode.ts'
 import type { State } from '@/utils/types.ts'
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRobotStore } from '@/stores/robot.ts'
 import BaseProgressBar from '@/components/base/BaseProgressBar.vue'
+import BaseSegmentedControl from '@/components/base/BaseSegmentedControl.vue'
 
 const robotStore = useRobotStore()
 
@@ -65,6 +67,18 @@ const poseVital = computed<Vital>(() => {
 })
 
 const vitals = computed(() => [connectionVital.value, poseVital.value, batteryVital.value])
+
+const controlModeLabels: Record<ControlMode, null> = {
+  Manual: null,
+  Autonomous: null,
+}
+
+const controlModes = Object.keys(controlModeLabels)
+
+const mode = ref<number>(0)
+watch(mode, (m) => {
+  robotStore.sendMessage({ Mode: Object.keys(controlModeLabels)[m] as ControlMode })
+})
 </script>
 
 <template>
@@ -113,6 +127,11 @@ const vitals = computed(() => [connectionVital.value, poseVital.value, batteryVi
         {{ robotStore.robotState.arm === 'Armed' ? 'Disarm' : 'Arm' }}
       </button>
       <button class="btn btn-secondary" @click="robotStore.sendMessage('Reset')">Reset</button>
+      <BaseSegmentedControl
+        v-model="mode"
+        class="col-span-2"
+        :options="controlModes"
+      ></BaseSegmentedControl>
     </div>
   </div>
 </template>

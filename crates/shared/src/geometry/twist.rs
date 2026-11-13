@@ -13,6 +13,16 @@ pub struct Twist {
 
 #[cfg(feature = "std")]
 impl Twist {
+    /// Rotates the linear velocity vector `(vx, vy)` counter-clockwise by `angle` radians, keeping `w` unchanged.
+    pub fn rotated(self, angle: f32) -> Self {
+        let v = super::Point2D::new(self.vx, self.vy).rotated(angle);
+        Self {
+            vx: v.x,
+            vy: v.y,
+            w: self.w,
+        }
+    }
+
     /// Computes the 3-wheel Kiwi inverse kinematics and scales wheel speeds if any exceeds `MAX_WHEEL_SPEED`.
     pub fn to_wheel_speeds(&self) -> [f32; 3] {
         let radius_inv = 1.0_f32 / crate::consts::WHEEL_RADIUS;

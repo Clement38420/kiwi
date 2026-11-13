@@ -67,12 +67,22 @@ impl Default for McuState {
 }
 
 #[cfg(feature = "std")]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "ts", derive(TS), ts(export))]
+pub enum ControlMode {
+    #[default]
+    Manual,
+    Autonomous,
+}
+
+#[cfg(feature = "std")]
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Default)]
 #[cfg_attr(feature = "ts", derive(TS), ts(export))]
 pub struct RobotState {
     #[serde(flatten)]
     #[cfg_attr(feature = "ts", ts(flatten))]
     pub mcu: McuState,
+    pub mode: ControlMode,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -119,6 +129,7 @@ pub enum GcsToRpi {
     GetStateReq(RpcRequest<()>),
     Reset,
     Twist(Twist),
+    Mode(ControlMode),
 }
 
 #[cfg(feature = "std")]
@@ -131,6 +142,7 @@ impl TryFrom<GcsToRpi> for RpiToMcu {
             GcsToRpi::GetStateReq(_) => Err(()),
             GcsToRpi::Reset => Ok(RpiToMcu::Reset),
             GcsToRpi::Twist(_) => Err(()),
+            GcsToRpi::Mode(_) => Err(()),
         }
     }
 }
