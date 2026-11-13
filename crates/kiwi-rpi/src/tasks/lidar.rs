@@ -1,7 +1,7 @@
+use crate::channels::Base;
 use crate::drivers;
 use shared::messages::LidarPoint;
 use std::sync::Arc;
-use tokio::sync::watch;
 
 const LIDAR_PORT: &str = "/dev/ttyUSB0";
 const LIDAR_BAUD_RATE: u32 = 512_000;
@@ -15,7 +15,7 @@ impl From<drivers::lidar::DataPoint> for LidarPoint {
     }
 }
 
-pub async fn lidar_task(tx: watch::Sender<Arc<Vec<LidarPoint>>>) {
+pub async fn lidar_task(base: Base) {
     loop {
         let mut lidar: drivers::lidar::Lidar = loop {
             let lidar_port_builder = tokio_serial::new(LIDAR_PORT, LIDAR_BAUD_RATE)
@@ -46,7 +46,7 @@ pub async fn lidar_task(tx: watch::Sender<Arc<Vec<LidarPoint>>>) {
                 Ok(points) => {
                     let scan: Arc<Vec<LidarPoint>> =
                         Arc::new(points.into_iter().map(Into::into).collect());
-                    let _ = tx.send(scan.clone());
+                    let _ = base.lidar.send(scan);
                 }
                 Err(e @ drivers::lidar::LidarError::CorruptPacket) => {
                     eprintln!("LIDAR: {e}");

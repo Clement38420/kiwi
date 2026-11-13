@@ -1,3 +1,4 @@
+use crate::channels::{Base, Communication};
 use axum::{
     Router,
     extract::{
@@ -9,9 +10,9 @@ use axum::{
     routing::any,
 };
 use rust_embed::RustEmbed;
-use shared::messages::{GcsToRpi, RobotState, RpiToGcs, RpiToMcu};
+use shared::messages::{ControlMode, GcsToRpi, RpiToGcs, RpiToMcu};
 use shared::rpc::RpcResponse;
-use tokio::sync::{broadcast, watch};
+use tokio::sync::broadcast;
 
 const GCS_PORT: &str = "8080";
 
@@ -21,24 +22,15 @@ struct GcsAssets;
 
 #[derive(Clone)]
 struct WsState {
-    ws_sending_queue: broadcast::Sender<RpiToGcs>,
-    mcu_sending_queue: broadcast::Sender<RpiToMcu>,
-    robot_state_tx: watch::Sender<RobotState>,
+    comm: Communication,
+    base: Base,
 }
 
-pub async fn gcs_task(
-    ws_sending_queue: broadcast::Sender<RpiToGcs>,
-    mcu_sending_queue: broadcast::Sender<RpiToMcu>,
-    robot_state_tx: watch::Sender<RobotState>,
-) {
+pub async fn gcs_task(comm: Communication, base: Base) {
     let app = Router::new()
         .route("/ws", any(ws_handler))
         .fallback(static_handler)
-        .with_state(WsState {
-            ws_sending_queue,
-            mcu_sending_queue,
-            robot_state_tx,
-        });
+        .with_state(WsState { comm, base });
 
     let listener = loop {
         if let Ok(listener) = tokio::net::TcpListener::bind(format!("0.0.0.0:{GCS_PORT}")).await {
@@ -55,28 +47,16 @@ pub async fn gcs_task(
 }
 
 async fn ws_handler(ws: WebSocketUpgrade, State(state): State<WsState>) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| {
-        handle_socket(
-            socket,
-            state.ws_sending_queue,
-            state.mcu_sending_queue,
-            state.robot_state_tx,
-        )
-    })
+    ws.on_upgrade(move |socket| handle_socket(socket, state.comm, state.base))
 }
 
-async fn handle_socket(
-    mut socket: WebSocket,
-    sending_queue_tx: broadcast::Sender<RpiToGcs>,
-    mcu_sending_queue: broadcast::Sender<RpiToMcu>,
-    robot_state_tx: watch::Sender<RobotState>,
-) {
+async fn handle_socket(mut socket: WebSocket, comm: Communication, base: Base) {
     println!("GCS: Client connected via WebSocket");
-    let mut sending_queue_rx = sending_queue_tx.subscribe();
+    let mut gcs_rx = comm.gcs.subscribe();
 
     loop {
         tokio::select! {
-            result = sending_queue_rx.recv() => match result {
+            result = gcs_rx.recv() => match result {
                 Ok(message) => {
                     if ws_send(&mut socket, &message).await.is_err() {
                         break; // Client disconnected
@@ -96,7 +76,7 @@ async fn handle_socket(
                                 GcsToRpi::GetStateReq(req) => {
                                     let res = RpiToGcs::GetStateRes(RpcResponse::new(
                                         req,
-                                        robot_state_tx.subscribe().borrow().clone(),
+                                        *base.state.borrow(),
                                     ));
                                     if ws_send(&mut socket, &res).await.is_err() {
                                         break; // Client disconnected
@@ -104,13 +84,13 @@ async fn handle_socket(
                                 }
                                 GcsToRpi::Reset => {}
                                 GcsToRpi::Twist(t) => {
-                                    let _ = mcu_sending_queue.send(RpiToMcu::WheelSpeedSetpoints(t.to_wheel_speeds()));
+                                    let _ = comm.mcu.send(RpiToMcu::WheelSpeedSetpoints(t.to_wheel_speeds()));
                                 }
                             }
 
                             // If the message can be converted to RpiToMcu, forward it
                             if let Ok(message) = RpiToMcu::try_from(message) {
-                                let _ = mcu_sending_queue.send(message);
+                                let _ = comm.mcu.send(message);
                             }
                         }
                         Err(e) => {

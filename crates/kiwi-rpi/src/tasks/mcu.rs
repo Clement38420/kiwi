@@ -1,20 +1,14 @@
+use crate::channels::{Base, Communication};
 use crate::drivers;
 use messages::RpiToMcu;
 use shared::geometry::Pose2D;
-use shared::messages::{self, McuToRpi, RobotState, RpiToGcs};
+use shared::messages::{self, McuToRpi, RpiToGcs};
 use tokio::sync::broadcast::error::RecvError;
-use tokio::sync::{broadcast, watch};
 
 const MCU_PORT: &str = "/dev/serial0";
 
-pub async fn mcu_task(
-    sending_queue: broadcast::Sender<RpiToMcu>,
-    gcs_tx: broadcast::Sender<RpiToGcs>,
-    robot_state_tx: watch::Sender<RobotState>,
-    odom_tx: watch::Sender<Pose2D>,
-    reset_tx: broadcast::Sender<()>,
-) {
-    let mut sending_queue = sending_queue.subscribe();
+pub async fn mcu_task(comm: Communication, base: Base) {
+    let mut mcu_rx = comm.mcu.subscribe();
 
     loop {
         let mut mcu = loop {
@@ -43,20 +37,20 @@ pub async fn mcu_task(
                 message = mcu.receive_message() => match message {
                     Ok(message) => {
                         match &message {
-                            McuToRpi::BatteryVoltage(v) => robot_state_tx.send_modify(|s| s.mcu.battery_voltage = *v),
-                            McuToRpi::BatteryLevel(v) => robot_state_tx.send_modify(|s| s.mcu.battery_level = *v),
-                            McuToRpi::ArmState(v) => robot_state_tx.send_modify(|s| s.mcu.arm = *v),
-                            McuToRpi::McuState(v) => robot_state_tx.send_modify(|s| s.mcu = *v),
-                            McuToRpi::Odom(v) => { odom_tx.send_replace(*v); },
+                            McuToRpi::BatteryVoltage(v) => base.state.send_modify(|s| s.mcu.battery_voltage = *v),
+                            McuToRpi::BatteryLevel(v) => base.state.send_modify(|s| s.mcu.battery_level = *v),
+                            McuToRpi::ArmState(v) => base.state.send_modify(|s| s.mcu.arm = *v),
+                            McuToRpi::McuState(v) => base.state.send_modify(|s| s.mcu = *v),
+                            McuToRpi::Odom(v) => { base.odom.send_replace(*v); },
                             McuToRpi::ResetAck => {
-                                odom_tx.send_replace(Pose2D::default());
-                                let _ = reset_tx.send(());
+                                base.odom.send_replace(Pose2D::default());
+                                let _ = base.reset.send(());
                             },
                         }
 
                         // If the message can be converted to RpiToGcs, forward it
                         if let Ok(message) = RpiToGcs::try_from(message) {
-                            let _ = gcs_tx.send(message);
+                            let _ = comm.gcs.send(message);
                         }
                     },
                     Err(e @ drivers::mcu::McuError::InvalidDataReceived) => {
@@ -68,7 +62,7 @@ pub async fn mcu_task(
                         break;
                     }
                 },
-                message = sending_queue.recv() => match message {
+                message = mcu_rx.recv() => match message {
                     Ok(message) => {
                         if let Err(e) = mcu.send_message(&message).await {
                             eprintln!("MCU TX: Failed to send message to MCU: {e:?}");

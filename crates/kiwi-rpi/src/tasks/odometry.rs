@@ -1,10 +1,8 @@
+use crate::channels::Base;
 use kd_tree::KdTree2;
 use shared::geometry::{Point2D, PointPolar, Pose2D};
 use shared::messages::LidarPoint;
 use std::f32::consts::PI;
-use std::sync::Arc;
-use tokio::sync::watch::Sender;
-use tokio::sync::{broadcast, watch};
 
 const ICP_MAX_ITERATIONS: usize = 10;
 const ICP_T_THRESHOLD: f32 = 0.0005 * 0.0005;
@@ -180,15 +178,14 @@ impl Keyframe {
     }
 }
 
-pub async fn odometry_task(
-    mut lidar_rx: watch::Receiver<Arc<Vec<LidarPoint>>>,
-    robot_pose_tx: Sender<Pose2D>,
-    mut odom_rx: watch::Receiver<Pose2D>,
-    mut reset_rx: broadcast::Receiver<()>,
-) {
+pub async fn odometry_task(base: Base) {
+    let mut lidar_rx = base.lidar.subscribe();
+    let mut odom_rx = base.odom.subscribe();
+    let mut reset_rx = base.reset.subscribe();
+
     let _ = lidar_rx.changed().await;
     let initial_pc = preprocess_scan(&lidar_rx.borrow_and_update());
-    let initial_pose = *robot_pose_tx.borrow();
+    let initial_pose = *base.pose.borrow();
     let initial_odom = *odom_rx.borrow();
 
     let mut keyframe = Keyframe::new(initial_pc, initial_pose, initial_odom);
@@ -202,13 +199,13 @@ pub async fn odometry_task(
                     let current_pc = preprocess_scan(&lidar_rx.borrow_and_update());
                     let _ = odom_rx.borrow_and_update();
                     keyframe = Keyframe::new(current_pc, zero_pose, zero_pose);
-                    let _ = robot_pose_tx.send(zero_pose);
+                    let _ = base.pose.send(zero_pose);
                 }
                 continue;
             }
             _ = odom_rx.changed() => {
                 let current_odom = *odom_rx.borrow_and_update();
-                robot_pose_tx.send_modify(|pose| {
+                base.pose.send_modify(|pose| {
                     pose.theta = current_odom.theta;
                 });
                 continue;
@@ -220,11 +217,11 @@ pub async fn odometry_task(
 
         let current_odom = *odom_rx.borrow();
         let Some(icp) = keyframe.align(&raw_pc, &current_odom, &mut matches) else {
-            robot_pose_tx.send_modify(|pose| {
+            base.pose.send_modify(|pose| {
                 pose.theta = current_odom.theta;
             });
             if raw_pc.len() >= 10 {
-                keyframe = Keyframe::new(raw_pc, *robot_pose_tx.borrow(), current_odom);
+                keyframe = Keyframe::new(raw_pc, *base.pose.borrow(), current_odom);
             }
             continue;
         };
@@ -234,7 +231,7 @@ pub async fn odometry_task(
         let world_x = keyframe.pose.x + cos_kf * icp.dx - sin_kf * icp.dy;
         let world_y = keyframe.pose.y + sin_kf * icp.dx + cos_kf * icp.dy;
 
-        robot_pose_tx.send_modify(|pose| {
+        base.pose.send_modify(|pose| {
             pose.x = world_x;
             pose.y = world_y;
             pose.theta = current_odom.theta;
