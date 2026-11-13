@@ -199,7 +199,7 @@ pub async fn odometry_task(base: Base) {
                     let current_pc = preprocess_scan(&lidar_rx.borrow_and_update());
                     let _ = odom_rx.borrow_and_update();
                     keyframe = Keyframe::new(current_pc, zero_pose, zero_pose);
-                    let _ = base.pose.send(zero_pose);
+                    base.pose.send_replace(zero_pose);
                 }
                 continue;
             }

@@ -46,7 +46,7 @@ pub async fn lidar_task(base: Base) {
                 Ok(points) => {
                     let scan: Arc<Vec<LidarPoint>> =
                         Arc::new(points.into_iter().map(Into::into).collect());
-                    let _ = base.lidar.send(scan);
+                    base.lidar.send_replace(scan);
                 }
                 Err(e @ drivers::lidar::LidarError::CorruptPacket) => {
                     eprintln!("LIDAR: {e}");
