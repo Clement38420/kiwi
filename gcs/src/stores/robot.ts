@@ -2,11 +2,11 @@ import { defineStore } from 'pinia'
 import type { RpiToGcs } from '@/bindings/RpiToGcs.ts'
 import { decode, encode } from '@msgpack/msgpack'
 import { computed, ref, shallowRef } from 'vue'
-import type { LidarPoint } from '@/bindings/LidarPoint.ts'
 import type { GcsToRpi } from '@/bindings/GcsToRpi.ts'
 import { createRpcClient } from '@/utils/rpc.ts'
 import type { RobotState } from '@/bindings/RobotState.ts'
 import type { Pose2D } from '@/bindings/Pose2D.ts'
+import type { LidarScan } from '@/bindings/LidarScan.ts'
 
 const RECONNECT_DELAY_MS = 2000
 
@@ -16,7 +16,7 @@ export const useRobotStore = defineStore('robot', () => {
 
   const connectionState = ref<number>(WebSocket.CONNECTING)
   const isConnected = computed(() => connectionState.value === WebSocket.OPEN)
-  const lidarScan = shallowRef<LidarPoint[]>([])
+  const lidarScan = shallowRef<LidarScan>({ points: [], pose: { x: 0, y: 0, theta: 0 } })
   const robotState = ref<RobotState>({
     battery_voltage: 0,
     battery_level: 'Critical',

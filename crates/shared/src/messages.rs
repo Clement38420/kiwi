@@ -96,10 +96,18 @@ pub enum McuToRpi {
 }
 
 #[cfg(feature = "std")]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[cfg_attr(feature = "ts", derive(TS), ts(export))]
+pub struct LidarScan {
+    pub points: std::sync::Arc<Vec<LidarPoint>>,
+    pub pose: Pose2D,
+}
+
+#[cfg(feature = "std")]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(TS), ts(export))]
 pub enum RpiToGcs {
-    LidarScan(std::sync::Arc<Vec<LidarPoint>>),
+    LidarScan(LidarScan),
     RobotState(RobotState),
     GetStateRes(RpcResponse<RobotState>),
     RobotPose(Pose2D),

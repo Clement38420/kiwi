@@ -1,5 +1,5 @@
 use shared::geometry::Pose2D;
-use shared::messages::{LidarPoint, RobotState, RpiToGcs, RpiToMcu};
+use shared::messages::{LidarPoint, LidarScan, RobotState, RpiToGcs, RpiToMcu};
 use std::sync::Arc;
 use tokio::sync::{broadcast, watch};
 
@@ -72,7 +72,10 @@ pub async fn gcs_relay_task(channels: Channels) {
             }
             Ok(()) = lidar_rx.changed() => {
                 let scan = lidar_rx.borrow_and_update().clone();
-                let _ = channels.comm.gcs.send(RpiToGcs::LidarScan(scan));
+                let _ = channels.comm.gcs.send(RpiToGcs::LidarScan(LidarScan {
+                    points: scan,
+                    pose: *channels.base.pose.borrow(),
+                }));
             }
             Ok(()) = robot_state_rx.changed() => {
                 let state = *robot_state_rx.borrow_and_update();
