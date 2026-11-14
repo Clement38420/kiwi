@@ -31,8 +31,8 @@ contexts (or single channel handle) required by each task:
   - **`mcu` (`broadcast::Sender<RpiToMcu>`, capacity 64)**: Outbound command stream to the STM32 (fed by `gcs_task` or `motion_task`).
 - **`Motion`** (`pose_cmd`):
   - **`pose_cmd` (`watch::Sender<Pose2D>`)**: Continuous 2D target pose setpoint consumed by `motion_task`. Using a `watch` channel instead of a FIFO lets high-level planners overwrite the target at any rate without stale-command lag.
-- **GCS Relay Task ([`gcs_relay_task`](../../crates/kiwi-rpi/src/channels.rs#L62-L84))**:
-  Subscribes to `base.pose`, `base.lidar`, and `base.state` inside a single `tokio::select!` loop and broadcasts `RpiToGcs::RobotPose`, `RpiToGcs::LidarScan`, and `RpiToGcs::RobotState` to `comm.gcs` whenever any of them changes.
+- **GCS Relay Task ([`gcs_relay_task`](../../crates/kiwi-rpi/src/channels.rs#L62-L87))**:
+  Subscribes to `base.pose`, `base.lidar`, and `base.state` inside a single `tokio::select!` loop and broadcasts `RpiToGcs::RobotPose`, `RpiToGcs::LidarScan(LidarScan { points, pose })`, and `RpiToGcs::RobotState` to `comm.gcs` whenever any of them changes. Bundling the current `base.pose` snapshot inside `LidarScan` allows the GCS to render scans in world coordinates without pose/scan desynchronization.
 
 ### Tasks and Drivers (`tasks/` & `drivers/`)
 
@@ -109,7 +109,7 @@ contexts (or single channel handle) required by each task:
     - Then branches on each stream variant (`LidarScan`, `RobotState`, `RobotPose`).
     - Enforces compile-time exhaustiveness (`const _exhaustiveCheck: never = message`): **if a new variant is added to `RpiToGcs` in Rust and exported via `ts-rs`, TypeScript compilation will fail until `dispatchMessage` handles it.**
 - **Reactivity Optimization**:
-    - `lidarScan` uses `shallowRef<LidarPoint[]>([])` instead of `ref()` to avoid deep reactive proxy overhead across hundreds of points on every LiDAR revolution.
+    - `lidarScan` uses `shallowRef<LidarScan>({ points: [], pose: { x: 0, y: 0, theta: 0 } })` instead of `ref()` to avoid deep reactive proxy overhead across hundreds of points on every LiDAR revolution.
     - `robotPose` uses `ref<Pose2D>({ x: 0, y: 0, theta: 0 })`.
 
 ### Key Components & Utilities
@@ -121,5 +121,5 @@ contexts (or single channel handle) required by each task:
 - **[`gcs/src/components/base/BaseSegmentedControl.vue`](../../gcs/src/components/base/BaseSegmentedControl.vue)**: Accessible segmented tab control (`role="tablist"` / `role="tab"`) bound via `defineModel<number>()` with a sliding active indicator and `disabled` state.
 - **[`gcs/src/components/modules/ModuleControl.vue`](../../gcs/src/components/modules/ModuleControl.vue)**: Manual teleoperation module combining a 2D virtual joystick for holonomic linear velocities ($V_x, V_y \in [-1.0, 1.0]\,\text{m/s}$) and a horizontal slider for angular velocity ($\omega \in [-\pi, \pi]\,\text{rad/s}$). Sends `GcsToRpi::Twist` on change and sustains the command every `250 ms` while dragged so the MCU's `1000 ms` setpoint watchdog stays active, automatically sending a zero twist on release. Automatically disables itself whenever `robotStore.robotState.mode !== 'Manual'` (`disabled-control` + `cursor-not-allowed`, clearing any active sustain timer and blocking `sendCurrentTwist()`).
 - **[`gcs/src/components/modules/ModuleHealth.vue`](../../gcs/src/components/modules/ModuleHealth.vue)**: Displays WebSocket connection status, battery voltage/gauge, current estimated pose ($X$, $Y$ in meters, $\theta$ in degrees), the `Arm` / `Disarm` control button (styled with semantic state colors: `crit` when armed, `ok` when disarmed), the `Reset` pose button, and the `BaseSegmentedControl` to switch `ControlMode` (`Manual` / `Autonomous`).
-- **[`gcs/src/components/modules/ModuleLidarMap.vue`](../../gcs/src/components/modules/ModuleLidarMap.vue)**: Renders the real-time LiDAR point cloud and robot marker on the `useViewport` canvas.
+- **[`gcs/src/components/modules/ModuleLidarMap.vue`](../../gcs/src/components/modules/ModuleLidarMap.vue)**: Renders the `lidarScan.points` cloud in world coordinates using `lidarScan.pose`, draws the robot marker at `robotStore.robotPose` on the `useViewport` canvas, and provides viewport controls to zoom, reset to world origin (`House`), or center on the robot (`LocateFixed`).
 - **[`gcs/src/App.vue`](../../gcs/src/App.vue)**: Responsive CSS Grid dashboard layout with adaptive areas (`health`, `lidar`, `control`, `camera`) transitioning smoothly between mobile, tablet (768px+), and desktop (1280px+) screens.

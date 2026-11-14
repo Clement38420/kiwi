@@ -33,7 +33,7 @@ Choosing between `Watch`, `Signal`, and `Channel` follows strict rules:
 | `embassy_sync` Primitive | Use Case | Behavior | Current Examples |
 | :--- | :--- | :--- | :--- |
 | **`Watch<M, T, N>`** | **Persistent robot state or high-rate shared state** (shared across tasks or mirrored to RPi/GCS). | Always holds the latest value. Allows $N$ tasks to subscribe to changes (`.changed().await` / `.try_changed()`) and any code to read or mutate the current value synchronously (`.try_get()`, `.send_modify()`). | `BATTERY_VOLTAGE`, `BATTERY_LEVEL`, `ARM_STATE`, `WHEEL_SPEEDS`, `POSE` |
-| **`Signal<M, T>`** | **Real-time setpoint / command** (1 producer $\rightarrow$ 1 consumer). | Only the latest value matters (overwrites unread values). Consumer awaits `.wait().await` or polls `.try_take()`. | `ARM_CMD`, `WHEEL_SPEED_SETPOINTS` |
+| **`Signal<M, T>`** | **Real-time setpoint / command / event** (1 producer $\rightarrow$ 1 consumer). | Only the latest value matters (overwrites unread values). Consumer awaits `.wait().await` or polls `.try_take()`. | `ARM_CMD`, `WHEEL_SPEED_SETPOINTS`, `RESET`, `RESET_DONE` |
 | **`Channel<M, T, N>`** | **Event or packet queue** (FIFO of capacity $N$). | Every message must be delivered in order without overwriting; queues up to $N$ items. | `UART_RX`, `UART_TX` |
 
 ---
@@ -92,8 +92,10 @@ High-frequency kinematic variables (`1 kHz`) do not use `update_watch` (which wo
 
 ### `imu.rs`
 - **`imu_task`** (period: `1 ms` / `1 kHz`):
-  - On startup, calibrates the MPU-6050 gyroscope zero-rate bias (`imu.calibrate(None)`, retrying every 1 s on I2C error).
-  - Every `1 ms`, reads the bias-compensated $Z$-axis angular velocity $\omega$ (`imu.read_z_gyro()`) and integrates the robot heading $\theta$ in `POSE` using **trapezoidal integration** (`f32::midpoint(w, prev_w) * dt`), wrapping $\theta \in [-\pi, \pi]$.
+  - On startup, calibrates the MPU-6050 gyroscope zero-rate bias (`calibrate_imu`, averaging 500 samples via `imu.calibrate(None)` and retrying every `1 s` on I2C error), then clears any stale `RESET` signal.
+  - Multiplexes `select(ticker.next(), RESET.wait())`:
+    - Every `1 ms`, reads the bias-compensated $Z$-axis angular velocity $\omega$ (`imu.read_z_gyro()`), zeroes readings inside `GYRO_DEADBAND` ($0.2\,^\circ/\text{s}$) to suppress stationary noise and residual drift, and integrates the robot heading $\theta$ in `POSE` using **trapezoidal integration** (`f32::midpoint(w, prev_w) * dt`), wrapping $\theta \in [-\pi, \pi]$.
+    - On `RESET`, re-runs `calibrate_imu` (~1 s; robot must remain stationary), clears any re-triggered `RESET`, resets `POSE` to `Pose2D::default()`, resets `prev_w`, `last_time`, and `ticker`, and signals `RESET_DONE.signal(())`.
 
 ### `odometry.rs`
 - **`odometry_task`** (period: `1 ms` / `1 kHz`):
@@ -108,8 +110,9 @@ High-frequency kinematic variables (`1 kHz`) do not use `update_watch` (which wo
 - **`uart_task`**: Splits `USART1` into `tx` and `rx` and runs concurrently (`join`):
   - `uart_rx_task`: Reads byte-by-byte until `0x00`, handles buffer overflows (`256` bytes), decodes the frame via `shared::codec::decode`, and pushes it to `UART_RX`.
   - `uart_tx_task`: Waits for messages on `UART_TX`, encodes them via `shared::codec::encode`, and writes them to UART.
-- **`message_dispatcher_task`**: Sends an initial synchronization snapshot (`send_sync()`) at startup, then consumes `UART_RX`:
+- **`message_dispatcher_task`**: Sends an initial synchronization snapshot (`send_sync()`) at startup, then multiplexes `select(UART_RX.receive(), RESET_DONE.wait())`:
   - `RpiToMcu::WheelSpeedSetpoints(setpoints)` $\rightarrow$ `WHEEL_SPEED_SETPOINTS.signal(setpoints)`.
   - `RpiToMcu::Arm(arm)` $\rightarrow$ `ARM_CMD.signal(arm)`.
   - `RpiToMcu::Sync` $\rightarrow$ sends `McuToRpi::McuState(get_full_state())` and `McuToRpi::Odom(POSE)` on `UART_TX`.
-  - `RpiToMcu::Reset` $\rightarrow$ resets `POSE` to `Pose2D::default()` and sends both `McuToRpi::Odom(Pose2D::default())` and `McuToRpi::ResetAck` on `UART_TX` to synchronize the RPi LiDAR odometry reset.
+  - `RpiToMcu::Reset` $\rightarrow$ calls `RESET_DONE.reset()` and `RESET.signal(())` without blocking UART reception (so `Arm` and `Sync` stay responsive during the ~1 s IMU recalibration).
+  - `RESET_DONE` $\rightarrow$ sends `McuToRpi::ResetAck` on `UART_TX` as the stream boundary marking that subsequent `McuToRpi::Odom` updates reflect the zeroed pose.
