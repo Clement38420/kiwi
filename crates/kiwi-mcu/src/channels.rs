@@ -126,3 +126,7 @@ pub static UART_RX: Channel<ThreadModeRawMutex, RpiToMcu, 16> = Channel::new();
 pub static UART_TX: Channel<ThreadModeRawMutex, McuToRpi, 16> = Channel::new();
 
 pub static WHEEL_SPEED_SETPOINTS: Signal<ThreadModeRawMutex, [f32; 3]> = Signal::new();
+
+pub static RESET: Signal<ThreadModeRawMutex, ()> = Signal::new();
+
+pub static RESET_DONE: Signal<ThreadModeRawMutex, ()> = Signal::new();

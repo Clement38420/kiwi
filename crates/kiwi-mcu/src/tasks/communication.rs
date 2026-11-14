@@ -1,5 +1,7 @@
-use crate::channels::{ARM_CMD, POSE, UART_RX, UART_TX, WHEEL_SPEED_SETPOINTS, get_full_state};
-use shared::geometry::Pose2D;
+use crate::channels::{
+    ARM_CMD, POSE, RESET, RESET_DONE, UART_RX, UART_TX, WHEEL_SPEED_SETPOINTS, get_full_state,
+};
+use embassy_futures::select::{Either, select};
 use shared::messages::{McuToRpi, RpiToMcu};
 
 #[embassy_executor::task]
@@ -7,14 +9,17 @@ pub async fn message_dispatcher_task() {
     send_sync().await;
 
     loop {
-        let message = UART_RX.receive().await;
-        match message {
-            RpiToMcu::WheelSpeedSetpoints(setpoints) => WHEEL_SPEED_SETPOINTS.signal(setpoints),
-            RpiToMcu::Arm(arm) => ARM_CMD.signal(arm),
-            RpiToMcu::Sync => send_sync().await,
-            RpiToMcu::Reset => {
-                POSE.sender().send(Pose2D::default());
-                UART_TX.send(McuToRpi::Odom(Pose2D::default())).await;
+        match select(UART_RX.receive(), RESET_DONE.wait()).await {
+            Either::First(message) => match message {
+                RpiToMcu::WheelSpeedSetpoints(setpoints) => WHEEL_SPEED_SETPOINTS.signal(setpoints),
+                RpiToMcu::Arm(arm) => ARM_CMD.signal(arm),
+                RpiToMcu::Sync => send_sync().await,
+                RpiToMcu::Reset => {
+                    RESET_DONE.reset();
+                    RESET.signal(());
+                }
+            },
+            Either::Second(()) => {
                 UART_TX.send(McuToRpi::ResetAck).await;
             }
         }
